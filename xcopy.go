@@ -15,12 +15,20 @@ func CopyFromExisting(src interface{}, currentValue interface{}) (interface{}, e
 	return NewConfig().CopyFromExisting(src, currentValue)
 }
 
+func CopyToExisting(src interface{}, currentValue interface{}) error {
+	return NewConfig().CopyToExisting(src, currentValue)
+}
+
 func XCopyToNew(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
 	return NewConfig().XCopyToNew(src, destType)
 }
 
 func XCopyFromExisting(src reflect.Value, currentValue reflect.Value) (reflect.Value, error) {
 	return NewConfig().XCopyFromExisting(src, currentValue)
+}
+
+func XCopyToExisting(src reflect.Value, currentValue reflect.Value) error {
+	return NewConfig().XCopyToExisting(src, currentValue)
 }
 
 const (
@@ -46,8 +54,20 @@ func NewConfig() *Config {
 	}
 }
 
+func (c Config) Dup() *Config {
+	return &Config{
+		Flags:       c.Flags,
+		RprimConfig: c.RprimConfig.Dup(),
+	}
+}
+
 func (c *Config) SetFlags(flags uint) *Config {
 	c.Flags = flags
+	return c
+}
+
+func (c *Config) AddFlags(flags uint) *Config {
+	c.Flags |= flags
 	return c
 }
 
@@ -72,12 +92,22 @@ func (c *Config) CopyFromExisting(src interface{}, currentValue interface{}) (in
 	return ret.Interface(), nil
 }
 
+func (c *Config) CopyToExisting(src interface{}, currentValue interface{}) error {
+	_, err := c.Dup().AddFlags(XCF_OVERWRITE_EXISTING).XCopyFromExisting(reflect.ValueOf(src), reflect.ValueOf(currentValue))
+	return err
+}
+
 func (c *Config) XCopyToNew(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
 	return c.XCopyFromExistingIfValid(src, destType, reflect.Value{})
 }
 
 func (c *Config) XCopyFromExisting(src reflect.Value, currentValue reflect.Value) (reflect.Value, error) {
 	return c.XCopyFromExistingIfValid(src, reflect.TypeOf(currentValue.Interface()), currentValue)
+}
+
+func (c *Config) XCopyToExisting(src reflect.Value, currentValue reflect.Value) error {
+	_, err := c.Dup().AddFlags(XCF_OVERWRITE_EXISTING).XCopyFromExistingIfValid(src, reflect.TypeOf(currentValue.Interface()), currentValue)
+	return err
 }
 
 func (c *Config) XCopyFromExistingIfValid(src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
