@@ -119,3 +119,36 @@ func TestStructToStructExistingInplace(t *testing.T) {
 		t.Fatal("The original struct should been changed")
 	}
 }
+
+func TestStructToMap(t *testing.T) {
+	s := NewST_Source()
+
+	gen, err := CopyToNew(s, reflect.TypeOf(map[string]interface{}{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sd, issd := gen.(map[string]interface{})
+	if !issd {
+		t.Fatal("Result is not map[string]interface{}")
+	}
+
+	if s.String1 != sd["String1"] ||
+		s.String2 != sd["String2"] ||
+		s.Int1 != sd["Int1"] ||
+		s.Int2 != sd["Int2"] ||
+		s.Float1 != sd["Float1"] ||
+		s.Float2 != sd["Float2"] ||
+		s.Interface1 != sd["Interface1"] {
+		t.Fatal("Values are different")
+	}
+}
+
+func TestStructToPrimitive(t *testing.T) {
+	s := NewST_Source()
+
+	_, err := CopyToNew(s, reflect.TypeOf(0))
+	if err == nil {
+		t.Fatal("Should not allow to copy struct to primitive")
+	}
+}
