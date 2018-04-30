@@ -2,24 +2,47 @@ package goxcopy
 
 import (
 	"fmt"
-	"github.com/RangelReale/rprim"
 	"reflect"
+
+	"github.com/RangelReale/rprim"
 )
 
 func XCopyToNew(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
+	return NewConfig().XCopyToNew(src, destType)
+}
+
+//
+// Config
+//
+type Config struct {
+	RprimConfig *rprim.Config
+}
+
+func NewConfig() *Config {
+	return &Config{
+		RprimConfig: rprim.NewConfig(),
+	}
+}
+
+func (c *Config) SetRprimConfig(rc *rprim.Config) *Config {
+	c.RprimConfig = rc
+	return c
+}
+
+func (c *Config) XCopyToNew(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
 	stype := rprim.IndirectType(src.Type())
 
 	switch stype.Kind() {
 	case reflect.Struct:
-		return xCopyToNew_Struct(src, destType)
+		return c.copyToNew_Struct(src, destType)
 	case reflect.Map:
-		return xCopyToNew_Map(src, destType)
+		return c.copyToNew_Map(src, destType)
 	case reflect.Slice:
-		return xCopyToNew_Slice(src, destType)
+		return c.copyToNew_Slice(src, destType)
 	case reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32,
 		reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,
 		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128, reflect.String, reflect.Interface:
-		return xCopyToNew_Primitive(src, destType)
+		return c.copyToNew_Primitive(src, destType)
 	}
 	return reflect.Value{}, fmt.Errorf("Kind not supported: %s", stype.Kind().String())
 }
@@ -27,10 +50,10 @@ func XCopyToNew(src reflect.Value, destType reflect.Type) (reflect.Value, error)
 //
 // Struct
 //
-func xCopyToNew_Struct(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
+func (c *Config) copyToNew_Struct(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
 	srcValue := reflect.Indirect(src)
 
-	destCreator, err := XCopyGetCreator(destType)
+	destCreator, err := c.XCopyGetCreator(destType)
 	if err != nil {
 		return reflect.Value{}, err
 	}
@@ -56,10 +79,10 @@ func xCopyToNew_Struct(src reflect.Value, destType reflect.Type) (reflect.Value,
 //
 // Map
 //
-func xCopyToNew_Map(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
+func (c *Config) copyToNew_Map(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
 	srcValue := reflect.Indirect(src)
 
-	destCreator, err := XCopyGetCreator(destType)
+	destCreator, err := c.XCopyGetCreator(destType)
 	if err != nil {
 		return reflect.Value{}, err
 	}
@@ -69,7 +92,7 @@ func xCopyToNew_Map(src reflect.Value, destType reflect.Type) (reflect.Value, er
 
 		err := destCreator.SetField(k, srcField)
 		if err != nil {
-			kstr, err := rprim.ConvertToString(k)
+			kstr, err := c.RprimConfig.ConvertToString(k)
 			if err != nil {
 				kstr = "<unknown>"
 			}
@@ -83,10 +106,10 @@ func xCopyToNew_Map(src reflect.Value, destType reflect.Type) (reflect.Value, er
 //
 // Slice
 //
-func xCopyToNew_Slice(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
+func (c *Config) copyToNew_Slice(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
 	srcValue := reflect.Indirect(src)
 
-	destCreator, err := XCopyGetCreator(destType)
+	destCreator, err := c.XCopyGetCreator(destType)
 	if err != nil {
 		return reflect.Value{}, err
 	}
@@ -106,8 +129,8 @@ func xCopyToNew_Slice(src reflect.Value, destType reflect.Type) (reflect.Value, 
 //
 // Primitive
 //
-func xCopyToNew_Primitive(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
-	destCreator, err := XCopyGetCreator(destType)
+func (c *Config) copyToNew_Primitive(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
+	destCreator, err := c.XCopyGetCreator(destType)
 	if err != nil {
 		return reflect.Value{}, err
 	}
