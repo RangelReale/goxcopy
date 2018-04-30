@@ -88,7 +88,10 @@ func (c *copyCreator_Struct) SetField(index reflect.Value, value reflect.Value) 
 
 	fieldType, ok := c.it.FieldByName(fieldname)
 	if !ok {
-		return nil // TODO: handle possible error
+		if (c.c.Flags & XCF_ERROR_IF_STRUCT_FIELD_MISSING) == XCF_ERROR_IF_STRUCT_FIELD_MISSING {
+			return fmt.Errorf("Field %s missing on struct", fieldname)
+		}
+		return nil
 	}
 
 	fieldValue := reflect.Indirect(c.v).FieldByName(fieldname)

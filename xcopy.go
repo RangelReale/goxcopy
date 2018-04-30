@@ -28,6 +28,8 @@ const (
 	XCF_OVERWRITE_EXISTING = 1
 	// Whether to allow creating a new item from a copy if the item is not assignable (only if using existing)
 	XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE = 2
+	//
+	XCF_ERROR_IF_STRUCT_FIELD_MISSING = 4
 )
 
 //
