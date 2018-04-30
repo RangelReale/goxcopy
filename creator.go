@@ -10,6 +10,7 @@ import (
 type XCopyCreator interface {
 	Type() reflect.Type
 	Create() (reflect.Value, error)
+	SetCurrentValue(current reflect.Value) error
 	SetField(index reflect.Value, value reflect.Value) error
 }
 
@@ -44,6 +45,17 @@ func (c *copyCreator_Struct) Type() reflect.Type {
 	return c.t
 }
 
+func (c *copyCreator_Struct) SetCurrentValue(current reflect.Value) error {
+	if current.Type() != c.t {
+		return fmt.Errorf("Destination is not of the same type (%s -> %s)", current.Type().String(), c.t.String())
+	}
+	if current.Kind() != reflect.Ptr || !current.IsNil() {
+		c.v = current
+		c.it = rprim.IndirectType(c.t)
+	}
+	return nil
+}
+
 func (c *copyCreator_Struct) Create() (reflect.Value, error) {
 	c.ensureValueOrZero()
 	return c.v, nil
@@ -64,7 +76,7 @@ func (c *copyCreator_Struct) SetField(index reflect.Value, value reflect.Value) 
 
 	fieldValue := reflect.Indirect(c.v).FieldByName(fieldname)
 
-	cv, err := c.c.XCopyToNew(value, fieldType.Type)
+	cv, err := c.c.XCopyToExistingIfValid(value, fieldType.Type, fieldValue)
 	if err != nil {
 		return err
 	}
@@ -104,6 +116,16 @@ func (c *copyCreator_Map) Type() reflect.Type {
 	return c.t
 }
 
+func (c *copyCreator_Map) SetCurrentValue(current reflect.Value) error {
+	if current.Type() != c.t {
+		return fmt.Errorf("Destination is not of the same type (%s -> %s)", current.Type().String(), c.t.String())
+	}
+	if !current.IsNil() {
+		c.v = current
+	}
+	return nil
+}
+
 func (c *copyCreator_Map) Create() (reflect.Value, error) {
 	c.ensureValueOrZero()
 	return c.v, nil
@@ -118,7 +140,16 @@ func (c *copyCreator_Map) SetField(index reflect.Value, value reflect.Value) err
 
 	c.ensureValue()
 
-	cv, err := c.c.XCopyToNew(value, c.t.Elem())
+	// map items are not assignable, if set, must be copied
+	currentValue := reflect.Value{}
+	if cur := c.v.MapIndex(mapindex); cur.IsValid() {
+		currentValue, err = c.c.XCopyToNew(cur, cur.Type())
+		if err != nil {
+			return err
+		}
+	}
+
+	cv, err := c.c.XCopyToExistingIfValid(value, c.t.Elem(), currentValue)
 	if err != nil {
 		return err
 	}
@@ -154,6 +185,16 @@ func (c *copyCreator_Slice) Type() reflect.Type {
 	return c.t
 }
 
+func (c *copyCreator_Slice) SetCurrentValue(current reflect.Value) error {
+	if current.Type() != c.t {
+		return fmt.Errorf("Destination is not of the same type (%s -> %s)", current.Type().String(), c.t.String())
+	}
+	if !current.IsNil() {
+		c.v = current
+	}
+	return nil
+}
+
 func (c *copyCreator_Slice) Create() (reflect.Value, error) {
 	c.ensureValueOrZero()
 	return c.v, nil
@@ -173,7 +214,12 @@ func (c *copyCreator_Slice) SetField(index reflect.Value, value reflect.Value) e
 		c.v = reflect.Append(c.v, reflect.Zero(c.t.Elem()))
 	}
 
-	cv, err := c.c.XCopyToNew(value, c.t.Elem())
+	currentValue := reflect.Value{}
+	if int(sliceindex.Int()) < c.v.Len() {
+		currentValue = c.v.Index(int(sliceindex.Int()))
+	}
+
+	cv, err := c.c.XCopyToExistingIfValid(value, c.t.Elem(), currentValue)
 	if err != nil {
 		return err
 	}
@@ -207,6 +253,17 @@ type copyCreator_Primitive struct {
 
 func (c *copyCreator_Primitive) Type() reflect.Type {
 	return c.t
+}
+
+func (c *copyCreator_Primitive) SetCurrentValue(current reflect.Value) error {
+	if current.Type() != c.t {
+		return fmt.Errorf("Destination is not of the same type (%s -> %s)", current.Type().String(), c.t.String())
+	}
+	if current.Kind() != reflect.Ptr || !current.IsNil() {
+		c.v = current
+		c.it = rprim.IndirectType(c.t)
+	}
+	return nil
 }
 
 func (c *copyCreator_Primitive) Create() (reflect.Value, error) {
