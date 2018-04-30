@@ -11,21 +11,23 @@ func CopyToNew(src interface{}, destType reflect.Type) (interface{}, error) {
 	return NewConfig().CopyToNew(src, destType)
 }
 
-func CopyToExisting(src interface{}, currentValue interface{}) (interface{}, error) {
-	return NewConfig().CopyToExisting(src, currentValue)
+func CopyFromExisting(src interface{}, currentValue interface{}) (interface{}, error) {
+	return NewConfig().CopyFromExisting(src, currentValue)
 }
 
 func XCopyToNew(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
 	return NewConfig().XCopyToNew(src, destType)
 }
 
-func XCopyToExisting(src reflect.Value, currentValue reflect.Value) (reflect.Value, error) {
-	return NewConfig().XCopyToExisting(src, currentValue)
+func XCopyFromExisting(src reflect.Value, currentValue reflect.Value) (reflect.Value, error) {
+	return NewConfig().XCopyFromExisting(src, currentValue)
 }
 
 const (
-	// Whether to allow creating a new item from a copy if the item is not assignable
-	XCF_ALLOW_CREATE_IF_NOT_SETTABLE = 1
+	// Whether to overwrite existing items instead of returning a copy
+	XCF_OVERWRITE_EXISTING = 1
+	// Whether to allow creating a new item from a copy if the item is not assignable (only if using existing)
+	XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE = 2
 )
 
 //
@@ -60,8 +62,8 @@ func (c *Config) CopyToNew(src interface{}, destType reflect.Type) (interface{},
 	return ret.Interface(), nil
 }
 
-func (c *Config) CopyToExisting(src interface{}, currentValue interface{}) (interface{}, error) {
-	ret, err := c.XCopyToExisting(reflect.ValueOf(src), reflect.ValueOf(currentValue))
+func (c *Config) CopyFromExisting(src interface{}, currentValue interface{}) (interface{}, error) {
+	ret, err := c.XCopyFromExisting(reflect.ValueOf(src), reflect.ValueOf(currentValue))
 	if err != nil {
 		return nil, err
 	}
@@ -69,14 +71,14 @@ func (c *Config) CopyToExisting(src interface{}, currentValue interface{}) (inte
 }
 
 func (c *Config) XCopyToNew(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
-	return c.XCopyToExistingIfValid(src, destType, reflect.Value{})
+	return c.XCopyFromExistingIfValid(src, destType, reflect.Value{})
 }
 
-func (c *Config) XCopyToExisting(src reflect.Value, currentValue reflect.Value) (reflect.Value, error) {
-	return c.XCopyToExistingIfValid(src, reflect.TypeOf(currentValue.Interface()), currentValue)
+func (c *Config) XCopyFromExisting(src reflect.Value, currentValue reflect.Value) (reflect.Value, error) {
+	return c.XCopyFromExistingIfValid(src, reflect.TypeOf(currentValue.Interface()), currentValue)
 }
 
-func (c *Config) XCopyToExistingIfValid(src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
+func (c *Config) XCopyFromExistingIfValid(src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
 	stype := rprim.IndirectType(src.Type())
 
 	switch stype.Kind() {

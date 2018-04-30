@@ -51,11 +51,13 @@ func (c *copyCreator_Struct) SetCurrentValue(current reflect.Value) error {
 		return fmt.Errorf("Destination is not of the same type (%s -> %s)", current.Type().String(), c.t.String())
 	}
 	if current.Kind() != reflect.Ptr || !current.IsNil() {
+		forceduplicate := !((c.c.Flags & XCF_OVERWRITE_EXISTING) == XCF_OVERWRITE_EXISTING)
+
 		// Check if the first field is settable
-		if reflect.Indirect(current).NumField() == 0 || reflect.Indirect(current).Field(0).CanSet() {
+		if !forceduplicate && (reflect.Indirect(current).NumField() == 0 || reflect.Indirect(current).Field(0).CanSet()) {
 			c.v = current
 		} else {
-			if (c.c.Flags & XCF_ALLOW_CREATE_IF_NOT_SETTABLE) == XCF_ALLOW_CREATE_IF_NOT_SETTABLE {
+			if forceduplicate || (c.c.Flags&XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE) == XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE {
 				// if struct is not settable, must make a copy
 				newValue, err := c.c.XCopyToNew(current, c.t)
 				if err != nil {
@@ -94,7 +96,7 @@ func (c *copyCreator_Struct) SetField(index reflect.Value, value reflect.Value) 
 		return fmt.Errorf("Struct field %s is not settable", fieldname)
 	}
 
-	cv, err := c.c.XCopyToExistingIfValid(value, fieldType.Type, fieldValue)
+	cv, err := c.c.XCopyFromExistingIfValid(value, fieldType.Type, fieldValue)
 	if err != nil {
 		return err
 	}
@@ -139,7 +141,17 @@ func (c *copyCreator_Map) SetCurrentValue(current reflect.Value) error {
 		return fmt.Errorf("Destination is not of the same type (%s -> %s)", current.Type().String(), c.t.String())
 	}
 	if !current.IsNil() {
-		c.v = current
+		forceduplicate := !((c.c.Flags & XCF_OVERWRITE_EXISTING) == XCF_OVERWRITE_EXISTING)
+		if !forceduplicate {
+			c.v = current
+		} else {
+			// duplicate the map
+			newValue, err := c.c.XCopyToNew(current, c.t)
+			if err != nil {
+				return err
+			}
+			c.v = newValue
+		}
 	}
 	return nil
 }
@@ -161,7 +173,7 @@ func (c *copyCreator_Map) SetField(index reflect.Value, value reflect.Value) err
 	// map items are not settable, if set, must be copied
 	currentValue := reflect.Value{}
 	if cur := c.v.MapIndex(mapindex); cur.IsValid() {
-		if (c.c.Flags & XCF_ALLOW_CREATE_IF_NOT_SETTABLE) == XCF_ALLOW_CREATE_IF_NOT_SETTABLE {
+		if (c.c.Flags & XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE) == XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE {
 			currentValue, err = c.c.XCopyToNew(cur, cur.Type())
 			if err != nil {
 				return err
@@ -171,7 +183,7 @@ func (c *copyCreator_Map) SetField(index reflect.Value, value reflect.Value) err
 		}
 	}
 
-	cv, err := c.c.XCopyToExistingIfValid(value, c.t.Elem(), currentValue)
+	cv, err := c.c.XCopyFromExistingIfValid(value, c.t.Elem(), currentValue)
 	if err != nil {
 		return err
 	}
@@ -212,7 +224,17 @@ func (c *copyCreator_Slice) SetCurrentValue(current reflect.Value) error {
 		return fmt.Errorf("Destination is not of the same type (%s -> %s)", current.Type().String(), c.t.String())
 	}
 	if !current.IsNil() {
-		c.v = current
+		forceduplicate := !((c.c.Flags & XCF_OVERWRITE_EXISTING) == XCF_OVERWRITE_EXISTING)
+		if !forceduplicate {
+			c.v = current
+		} else {
+			// duplicate the slice
+			newValue, err := c.c.XCopyToNew(current, c.t)
+			if err != nil {
+				return err
+			}
+			c.v = newValue
+		}
 	}
 	return nil
 }
@@ -241,7 +263,7 @@ func (c *copyCreator_Slice) SetField(index reflect.Value, value reflect.Value) e
 		currentValue = c.v.Index(int(sliceindex.Int()))
 	}
 
-	cv, err := c.c.XCopyToExistingIfValid(value, c.t.Elem(), currentValue)
+	cv, err := c.c.XCopyFromExistingIfValid(value, c.t.Elem(), currentValue)
 	if err != nil {
 		return err
 	}
@@ -282,7 +304,17 @@ func (c *copyCreator_Primitive) SetCurrentValue(current reflect.Value) error {
 		return fmt.Errorf("Destination is not of the same type (%s -> %s)", current.Type().String(), c.t.String())
 	}
 	if current.Kind() != reflect.Ptr || !current.IsNil() {
-		c.v = current
+		forceduplicate := !((c.c.Flags & XCF_OVERWRITE_EXISTING) == XCF_OVERWRITE_EXISTING)
+		if !forceduplicate {
+			c.v = current
+		} else {
+			// duplicate the primitive
+			newValue, err := c.c.XCopyToNew(current, c.t)
+			if err != nil {
+				return err
+			}
+			c.v = newValue
+		}
 		c.it = rprim.IndirectType(c.t)
 	}
 	return nil
@@ -311,6 +343,8 @@ func (c *copyCreator_Primitive) ensureValue() {
 	if !c.v.IsValid() {
 		if c.t.Kind() == reflect.Ptr {
 			c.v = reflect.New(c.t.Elem())
+		} else if c.t.Kind() == reflect.Interface {
+			c.v = reflect.New(c.t).Elem()
 		} else {
 			c.v = reflect.New(c.t).Elem()
 		}
