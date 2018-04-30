@@ -11,15 +11,15 @@ func XCopyToNew(src reflect.Value, destType reflect.Type) (reflect.Value, error)
 
 	switch stype.Kind() {
 	case reflect.Struct:
-		return XCopyToNew_Struct(src, destType)
+		return xCopyToNew_Struct(src, destType)
 	case reflect.Map:
-		return XCopyToNew_Map(src, destType)
+		return xCopyToNew_Map(src, destType)
 	case reflect.Slice:
-		return XCopyToNew_Slice(src, destType)
+		return xCopyToNew_Slice(src, destType)
 	case reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32,
 		reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,
 		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128, reflect.String, reflect.Interface:
-		return XCopyToNew_Primitive(src, destType)
+		return xCopyToNew_Primitive(src, destType)
 	}
 	return reflect.Value{}, fmt.Errorf("Kind not supported: %s", stype.Kind().String())
 }
@@ -27,7 +27,7 @@ func XCopyToNew(src reflect.Value, destType reflect.Type) (reflect.Value, error)
 //
 // Struct
 //
-func XCopyToNew_Struct(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
+func xCopyToNew_Struct(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
 	srcValue := reflect.Indirect(src)
 
 	destCreator, err := XCopyGetCreator(destType)
@@ -56,7 +56,7 @@ func XCopyToNew_Struct(src reflect.Value, destType reflect.Type) (reflect.Value,
 //
 // Map
 //
-func XCopyToNew_Map(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
+func xCopyToNew_Map(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
 	srcValue := reflect.Indirect(src)
 
 	destCreator, err := XCopyGetCreator(destType)
@@ -83,7 +83,7 @@ func XCopyToNew_Map(src reflect.Value, destType reflect.Type) (reflect.Value, er
 //
 // Slice
 //
-func XCopyToNew_Slice(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
+func xCopyToNew_Slice(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
 	srcValue := reflect.Indirect(src)
 
 	destCreator, err := XCopyGetCreator(destType)
@@ -106,7 +106,7 @@ func XCopyToNew_Slice(src reflect.Value, destType reflect.Type) (reflect.Value, 
 //
 // Primitive
 //
-func XCopyToNew_Primitive(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
+func xCopyToNew_Primitive(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
 	destCreator, err := XCopyGetCreator(destType)
 	if err != nil {
 		return reflect.Value{}, err

@@ -16,15 +16,15 @@ type XCopyCreator interface {
 func XCopyGetCreator(t reflect.Type) (XCopyCreator, error) {
 	switch rprim.IndirectType(t).Kind() {
 	case reflect.Struct:
-		return &XCopyCreator_Struct{t: t}, nil
+		return &xCopyCreator_Struct{t: t}, nil
 	case reflect.Map:
-		return &XCopyCreator_Map{t: t}, nil
+		return &xCopyCreator_Map{t: t}, nil
 	case reflect.Slice:
-		return &XCopyCreator_Slice{t: t}, nil
+		return &xCopyCreator_Slice{t: t}, nil
 	case reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32,
 		reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,
 		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128, reflect.String, reflect.Interface:
-		return &XCopyCreator_Primitive{t: t}, nil
+		return &xCopyCreator_Primitive{t: t}, nil
 	}
 	return nil, fmt.Errorf("Kind not supported: %s", t.Kind().String())
 }
@@ -33,22 +33,22 @@ func XCopyGetCreator(t reflect.Type) (XCopyCreator, error) {
 // Struct
 //
 
-type XCopyCreator_Struct struct {
+type xCopyCreator_Struct struct {
 	t  reflect.Type
 	it reflect.Type
 	v  reflect.Value
 }
 
-func (c *XCopyCreator_Struct) Type() reflect.Type {
+func (c *xCopyCreator_Struct) Type() reflect.Type {
 	return c.t
 }
 
-func (c *XCopyCreator_Struct) Create() (reflect.Value, error) {
+func (c *xCopyCreator_Struct) Create() (reflect.Value, error) {
 	c.ensureValueOrZero()
 	return c.v, nil
 }
 
-func (c *XCopyCreator_Struct) SetField(index reflect.Value, value reflect.Value) error {
+func (c *xCopyCreator_Struct) SetField(index reflect.Value, value reflect.Value) error {
 	fieldname, err := rprim.ConvertToString(index)
 	if err != nil {
 		return err
@@ -72,7 +72,7 @@ func (c *XCopyCreator_Struct) SetField(index reflect.Value, value reflect.Value)
 	return nil
 }
 
-func (c *XCopyCreator_Struct) ensureValue() {
+func (c *xCopyCreator_Struct) ensureValue() {
 	if !c.v.IsValid() {
 		if c.t.Kind() == reflect.Ptr {
 			c.v = reflect.New(c.t.Elem())
@@ -83,7 +83,7 @@ func (c *XCopyCreator_Struct) ensureValue() {
 	}
 }
 
-func (c *XCopyCreator_Struct) ensureValueOrZero() {
+func (c *xCopyCreator_Struct) ensureValueOrZero() {
 	if !c.v.IsValid() {
 		c.v = reflect.New(c.t).Elem()
 	}
@@ -93,21 +93,21 @@ func (c *XCopyCreator_Struct) ensureValueOrZero() {
 // Map
 //
 
-type XCopyCreator_Map struct {
+type xCopyCreator_Map struct {
 	t reflect.Type
 	v reflect.Value
 }
 
-func (c *XCopyCreator_Map) Type() reflect.Type {
+func (c *xCopyCreator_Map) Type() reflect.Type {
 	return c.t
 }
 
-func (c *XCopyCreator_Map) Create() (reflect.Value, error) {
+func (c *xCopyCreator_Map) Create() (reflect.Value, error) {
 	c.ensureValueOrZero()
 	return c.v, nil
 }
 
-func (c *XCopyCreator_Map) SetField(index reflect.Value, value reflect.Value) error {
+func (c *xCopyCreator_Map) SetField(index reflect.Value, value reflect.Value) error {
 	// convert index to the map index type
 	mapindex, err := rprim.Convert(index, rprim.IndirectType(c.t).Key())
 	if err != nil {
@@ -125,13 +125,13 @@ func (c *XCopyCreator_Map) SetField(index reflect.Value, value reflect.Value) er
 	return nil
 }
 
-func (c *XCopyCreator_Map) ensureValue() {
+func (c *xCopyCreator_Map) ensureValue() {
 	if !c.v.IsValid() {
 		c.v = reflect.MakeMap(c.t)
 	}
 }
 
-func (c *XCopyCreator_Map) ensureValueOrZero() {
+func (c *xCopyCreator_Map) ensureValueOrZero() {
 	if !c.v.IsValid() {
 		//c.v = reflect.New(c.t).Elem()
 		c.v = reflect.Zero(c.t)
@@ -142,21 +142,21 @@ func (c *XCopyCreator_Map) ensureValueOrZero() {
 // Slice
 //
 
-type XCopyCreator_Slice struct {
+type xCopyCreator_Slice struct {
 	t reflect.Type
 	v reflect.Value
 }
 
-func (c *XCopyCreator_Slice) Type() reflect.Type {
+func (c *xCopyCreator_Slice) Type() reflect.Type {
 	return c.t
 }
 
-func (c *XCopyCreator_Slice) Create() (reflect.Value, error) {
+func (c *xCopyCreator_Slice) Create() (reflect.Value, error) {
 	c.ensureValueOrZero()
 	return c.v, nil
 }
 
-func (c *XCopyCreator_Slice) SetField(index reflect.Value, value reflect.Value) error {
+func (c *xCopyCreator_Slice) SetField(index reflect.Value, value reflect.Value) error {
 	// convert index to int
 	sliceindex, err := rprim.Convert(index, reflect.TypeOf(0))
 	if err != nil {
@@ -179,13 +179,13 @@ func (c *XCopyCreator_Slice) SetField(index reflect.Value, value reflect.Value) 
 	return nil
 }
 
-func (c *XCopyCreator_Slice) ensureValue() {
+func (c *xCopyCreator_Slice) ensureValue() {
 	if !c.v.IsValid() {
 		c.v = reflect.MakeSlice(c.t, 0, 0)
 	}
 }
 
-func (c *XCopyCreator_Slice) ensureValueOrZero() {
+func (c *xCopyCreator_Slice) ensureValueOrZero() {
 	if !c.v.IsValid() {
 		c.v = reflect.Zero(c.t)
 	}
@@ -195,22 +195,22 @@ func (c *XCopyCreator_Slice) ensureValueOrZero() {
 // Primitive
 //
 
-type XCopyCreator_Primitive struct {
+type xCopyCreator_Primitive struct {
 	t  reflect.Type
 	it reflect.Type
 	v  reflect.Value
 }
 
-func (c *XCopyCreator_Primitive) Type() reflect.Type {
+func (c *xCopyCreator_Primitive) Type() reflect.Type {
 	return c.t
 }
 
-func (c *XCopyCreator_Primitive) Create() (reflect.Value, error) {
+func (c *xCopyCreator_Primitive) Create() (reflect.Value, error) {
 	c.ensureValueOrZero()
 	return c.v, nil
 }
 
-func (c *XCopyCreator_Primitive) SetField(index reflect.Value, value reflect.Value) error {
+func (c *xCopyCreator_Primitive) SetField(index reflect.Value, value reflect.Value) error {
 	if index.IsValid() {
 		return fmt.Errorf("Cannot set a primitive with an index")
 	}
@@ -224,7 +224,7 @@ func (c *XCopyCreator_Primitive) SetField(index reflect.Value, value reflect.Val
 	return nil
 }
 
-func (c *XCopyCreator_Primitive) ensureValue() {
+func (c *xCopyCreator_Primitive) ensureValue() {
 	if !c.v.IsValid() {
 		if c.t.Kind() == reflect.Ptr {
 			c.v = reflect.New(c.t.Elem())
@@ -235,7 +235,7 @@ func (c *XCopyCreator_Primitive) ensureValue() {
 	}
 }
 
-func (c *XCopyCreator_Primitive) ensureValueOrZero() {
+func (c *xCopyCreator_Primitive) ensureValueOrZero() {
 	if !c.v.IsValid() {
 		c.v = reflect.New(c.t).Elem()
 	}
