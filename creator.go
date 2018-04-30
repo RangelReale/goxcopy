@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"errors"
 	"github.com/RangelReale/rprim"
 )
 
@@ -50,7 +51,21 @@ func (c *copyCreator_Struct) SetCurrentValue(current reflect.Value) error {
 		return fmt.Errorf("Destination is not of the same type (%s -> %s)", current.Type().String(), c.t.String())
 	}
 	if current.Kind() != reflect.Ptr || !current.IsNil() {
-		c.v = current
+		// Check if the first field is settable
+		if reflect.Indirect(current).NumField() == 0 || reflect.Indirect(current).Field(0).CanSet() {
+			c.v = current
+		} else {
+			if (c.c.Flags & XCF_ALLOW_CREATE_IF_NOT_SETTABLE) == XCF_ALLOW_CREATE_IF_NOT_SETTABLE {
+				// if struct is not settable, must make a copy
+				newValue, err := c.c.XCopyToNew(current, c.t)
+				if err != nil {
+					return err
+				}
+				c.v = newValue
+			} else {
+				return fmt.Errorf("Struct field is not settable")
+			}
+		}
 		c.it = rprim.IndirectType(c.t)
 	}
 	return nil
@@ -75,6 +90,9 @@ func (c *copyCreator_Struct) SetField(index reflect.Value, value reflect.Value) 
 	}
 
 	fieldValue := reflect.Indirect(c.v).FieldByName(fieldname)
+	if !fieldValue.CanSet() {
+		return fmt.Errorf("Struct field %s is not settable", fieldname)
+	}
 
 	cv, err := c.c.XCopyToExistingIfValid(value, fieldType.Type, fieldValue)
 	if err != nil {
@@ -140,12 +158,16 @@ func (c *copyCreator_Map) SetField(index reflect.Value, value reflect.Value) err
 
 	c.ensureValue()
 
-	// map items are not assignable, if set, must be copied
+	// map items are not settable, if set, must be copied
 	currentValue := reflect.Value{}
 	if cur := c.v.MapIndex(mapindex); cur.IsValid() {
-		currentValue, err = c.c.XCopyToNew(cur, cur.Type())
-		if err != nil {
-			return err
+		if (c.c.Flags & XCF_ALLOW_CREATE_IF_NOT_SETTABLE) == XCF_ALLOW_CREATE_IF_NOT_SETTABLE {
+			currentValue, err = c.c.XCopyToNew(cur, cur.Type())
+			if err != nil {
+				return err
+			}
+		} else {
+			return errors.New("Map item is not settable, cannot set existing item")
 		}
 	}
 

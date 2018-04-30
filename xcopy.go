@@ -23,10 +23,16 @@ func XCopyToExisting(src reflect.Value, currentValue reflect.Value) (reflect.Val
 	return NewConfig().XCopyToExisting(src, currentValue)
 }
 
+const (
+	// Whether to allow creating a new item from a copy if the item is not assignable
+	XCF_ALLOW_CREATE_IF_NOT_SETTABLE = 1
+)
+
 //
 // Config
 //
 type Config struct {
+	Flags       uint
 	RprimConfig *rprim.Config
 }
 
@@ -34,6 +40,11 @@ func NewConfig() *Config {
 	return &Config{
 		RprimConfig: rprim.NewConfig(),
 	}
+}
+
+func (c *Config) SetFlags(flags uint) *Config {
+	c.Flags = flags
+	return c
 }
 
 func (c *Config) SetRprimConfig(rc *rprim.Config) *Config {
@@ -138,8 +149,8 @@ func (c *Config) copyToNew_Map(src reflect.Value, destType reflect.Type, current
 
 		err := destCreator.SetField(k, srcField)
 		if err != nil {
-			kstr, err := c.RprimConfig.ConvertToString(k)
-			if err != nil {
+			kstr, kerr := c.RprimConfig.ConvertToString(k)
+			if kerr != nil {
 				kstr = "<unknown>"
 			}
 			return reflect.Value{}, fmt.Errorf("Error copying from map index %s: %v", kstr, err)
