@@ -335,9 +335,19 @@ func (c *copyCreator_Primitive) SetField(index reflect.Value, value reflect.Valu
 
 	c.ensureValue()
 	var err error
-	c.v, err = c.c.RprimConfig.Convert(value, c.t)
+	val, err := c.c.RprimConfig.Convert(value, c.t)
 	if err != nil {
 		return err
+	}
+
+	// check if settable
+	if c.v.CanSet() {
+		c.v.Set(val)
+	} else if c.v.Kind() == reflect.Ptr && !c.v.IsNil() && val.Kind() == reflect.Ptr {
+		// if is non-nil pointer, set the pointed to element value
+		c.v.Elem().Set(val.Elem())
+	} else {
+		return errors.New("The primitive value is not settable")
 	}
 	return nil
 }
