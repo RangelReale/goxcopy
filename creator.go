@@ -1,10 +1,10 @@
 package goxcopy
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 
-	"errors"
 	"github.com/RangelReale/rprim"
 )
 
@@ -99,7 +99,7 @@ func (c *copyCreator_Struct) SetField(index reflect.Value, value reflect.Value) 
 		return fmt.Errorf("Struct field %s is not settable", fieldname)
 	}
 
-	cv, err := c.c.XCopyFromExistingIfValid(value, fieldType.Type, fieldValue)
+	cv, err := c.c.XCopyUsingExistingIfValid(value, fieldType.Type, fieldValue)
 	if err != nil {
 		return err
 	}
@@ -186,7 +186,7 @@ func (c *copyCreator_Map) SetField(index reflect.Value, value reflect.Value) err
 		}
 	}
 
-	cv, err := c.c.XCopyFromExistingIfValid(value, c.t.Elem(), currentValue)
+	cv, err := c.c.XCopyUsingExistingIfValid(value, c.t.Elem(), currentValue)
 	if err != nil {
 		return err
 	}
@@ -266,7 +266,7 @@ func (c *copyCreator_Slice) SetField(index reflect.Value, value reflect.Value) e
 		currentValue = c.v.Index(int(sliceindex.Int()))
 	}
 
-	cv, err := c.c.XCopyFromExistingIfValid(value, c.t.Elem(), currentValue)
+	cv, err := c.c.XCopyUsingExistingIfValid(value, c.t.Elem(), currentValue)
 	if err != nil {
 		return err
 	}
@@ -306,20 +306,22 @@ func (c *copyCreator_Primitive) SetCurrentValue(current reflect.Value) error {
 	if current.Type() != c.t {
 		return fmt.Errorf("Destination is not of the same type (%s -> %s)", current.Type().String(), c.t.String())
 	}
-	if current.Kind() != reflect.Ptr || !current.IsNil() {
-		forceduplicate := !((c.c.Flags & XCF_OVERWRITE_EXISTING) == XCF_OVERWRITE_EXISTING)
-		if !forceduplicate {
-			c.v = current
-		} else {
+	forceduplicate := !((c.c.Flags & XCF_OVERWRITE_EXISTING) == XCF_OVERWRITE_EXISTING)
+	if !forceduplicate {
+		c.v = current
+		c.it = rprim.IndirectType(c.t)
+	} else {
+		if current.Kind() != reflect.Ptr || !current.IsNil() {
 			// duplicate the primitive
 			newValue, err := c.c.XCopyToNew(current, c.t)
 			if err != nil {
 				return err
 			}
 			c.v = newValue
+			c.it = rprim.IndirectType(c.t)
 		}
-		c.it = rprim.IndirectType(c.t)
 	}
+	c.it = rprim.IndirectType(c.t)
 	return nil
 }
 
@@ -343,9 +345,15 @@ func (c *copyCreator_Primitive) SetField(index reflect.Value, value reflect.Valu
 	// check if settable
 	if c.v.CanSet() {
 		c.v.Set(val)
-	} else if c.v.Kind() == reflect.Ptr && !c.v.IsNil() && val.Kind() == reflect.Ptr {
+	} else if c.v.Kind() == reflect.Ptr && val.Kind() == reflect.Ptr {
 		// if is non-nil pointer, set the pointed to element value
-		c.v.Elem().Set(val.Elem())
+		if c.v.IsNil() && !val.IsNil() {
+			return errors.New("The primitive value is not settable, and the destination value is nil")
+		} else if val.IsNil() {
+			return errors.New("The primitive value is not settable, and the source value is nil")
+		} else {
+			c.v.Elem().Set(val.Elem())
+		}
 	} else {
 		return errors.New("The primitive value is not settable")
 	}
@@ -354,13 +362,7 @@ func (c *copyCreator_Primitive) SetField(index reflect.Value, value reflect.Valu
 
 func (c *copyCreator_Primitive) ensureValue() {
 	if !c.v.IsValid() {
-		if c.t.Kind() == reflect.Ptr {
-			c.v = reflect.New(c.t.Elem())
-		} else if c.t.Kind() == reflect.Interface {
-			c.v = reflect.New(c.t).Elem()
-		} else {
-			c.v = reflect.New(c.t).Elem()
-		}
+		c.v = reflect.New(c.t).Elem()
 		c.it = rprim.IndirectType(c.t)
 	}
 }

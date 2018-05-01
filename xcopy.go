@@ -7,12 +7,16 @@ import (
 	"github.com/RangelReale/rprim"
 )
 
+func Copy(from interface{}, to interface{}) error {
+	return CopyToExisting(from, to)
+}
+
 func CopyToNew(src interface{}, destType reflect.Type) (interface{}, error) {
 	return NewConfig().CopyToNew(src, destType)
 }
 
-func CopyFromExisting(src interface{}, currentValue interface{}) (interface{}, error) {
-	return NewConfig().CopyFromExisting(src, currentValue)
+func CopyUsingExisting(src interface{}, currentValue interface{}) (interface{}, error) {
+	return NewConfig().CopyUsingExisting(src, currentValue)
 }
 
 func CopyToExisting(src interface{}, currentValue interface{}) error {
@@ -24,7 +28,7 @@ func XCopyToNew(src reflect.Value, destType reflect.Type) (reflect.Value, error)
 }
 
 func XCopyFromExisting(src reflect.Value, currentValue reflect.Value) (reflect.Value, error) {
-	return NewConfig().XCopyFromExisting(src, currentValue)
+	return NewConfig().XCopyUsingExisting(src, currentValue)
 }
 
 func XCopyToExisting(src reflect.Value, currentValue reflect.Value) error {
@@ -84,8 +88,8 @@ func (c *Config) CopyToNew(src interface{}, destType reflect.Type) (interface{},
 	return ret.Interface(), nil
 }
 
-func (c *Config) CopyFromExisting(src interface{}, currentValue interface{}) (interface{}, error) {
-	ret, err := c.XCopyFromExisting(reflect.ValueOf(src), reflect.ValueOf(currentValue))
+func (c *Config) CopyUsingExisting(src interface{}, currentValue interface{}) (interface{}, error) {
+	ret, err := c.XCopyUsingExisting(reflect.ValueOf(src), reflect.ValueOf(currentValue))
 	if err != nil {
 		return nil, err
 	}
@@ -93,24 +97,24 @@ func (c *Config) CopyFromExisting(src interface{}, currentValue interface{}) (in
 }
 
 func (c *Config) CopyToExisting(src interface{}, currentValue interface{}) error {
-	_, err := c.Dup().AddFlags(XCF_OVERWRITE_EXISTING).XCopyFromExisting(reflect.ValueOf(src), reflect.ValueOf(currentValue))
+	_, err := c.Dup().AddFlags(XCF_OVERWRITE_EXISTING).XCopyUsingExisting(reflect.ValueOf(src), reflect.ValueOf(currentValue))
 	return err
 }
 
 func (c *Config) XCopyToNew(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
-	return c.XCopyFromExistingIfValid(src, destType, reflect.Value{})
+	return c.XCopyUsingExistingIfValid(src, destType, reflect.Value{})
 }
 
-func (c *Config) XCopyFromExisting(src reflect.Value, currentValue reflect.Value) (reflect.Value, error) {
-	return c.XCopyFromExistingIfValid(src, reflect.TypeOf(currentValue.Interface()), currentValue)
+func (c *Config) XCopyUsingExisting(src reflect.Value, currentValue reflect.Value) (reflect.Value, error) {
+	return c.XCopyUsingExistingIfValid(src, reflect.TypeOf(currentValue.Interface()), currentValue)
 }
 
 func (c *Config) XCopyToExisting(src reflect.Value, currentValue reflect.Value) error {
-	_, err := c.Dup().AddFlags(XCF_OVERWRITE_EXISTING).XCopyFromExistingIfValid(src, reflect.TypeOf(currentValue.Interface()), currentValue)
+	_, err := c.Dup().AddFlags(XCF_OVERWRITE_EXISTING).XCopyUsingExistingIfValid(src, reflect.TypeOf(currentValue.Interface()), currentValue)
 	return err
 }
 
-func (c *Config) XCopyFromExistingIfValid(src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
+func (c *Config) XCopyUsingExistingIfValid(src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
 	stype := rprim.IndirectType(src.Type())
 
 	switch stype.Kind() {

@@ -40,7 +40,7 @@ func TestMapToMapExisting(t *testing.T) {
 		"oldString1": "old___string1",
 	}
 
-	gen, err := CopyFromExisting(s, xsd)
+	gen, err := CopyUsingExisting(s, xsd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestMapToMapExistingInplace(t *testing.T) {
 	}
 
 	_, err := NewConfig().SetFlags(XCF_OVERWRITE_EXISTING).
-		CopyFromExisting(s, xsd)
+		CopyUsingExisting(s, xsd)
 	if err != nil {
 		t.Fatal(err)
 	}

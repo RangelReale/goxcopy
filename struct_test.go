@@ -73,7 +73,7 @@ func TestStructToStructExisting(t *testing.T) {
 		ExtraValue: "555444",
 	}
 
-	gen, err := CopyFromExisting(s, xsd)
+	gen, err := CopyUsingExisting(s, xsd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func TestStructToStructExistingInplace(t *testing.T) {
 	}
 
 	_, err := NewConfig().SetFlags(XCF_OVERWRITE_EXISTING).
-		CopyFromExisting(s, xsd)
+		CopyUsingExisting(s, xsd)
 	if err != nil {
 		t.Fatal(err)
 	}

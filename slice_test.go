@@ -43,7 +43,7 @@ func TestSliceToSliceExisting(t *testing.T) {
 		"Existing item",
 	}
 
-	gen, err := CopyFromExisting(s, xsd)
+	gen, err := CopyUsingExisting(s, xsd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestSliceToSliceExistingInplace(t *testing.T) {
 	}
 
 	_, err := NewConfig().SetFlags(XCF_OVERWRITE_EXISTING).
-		CopyFromExisting(s, xsd)
+		CopyUsingExisting(s, xsd)
 	if err != nil {
 		t.Fatal(err)
 	}
