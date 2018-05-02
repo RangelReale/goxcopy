@@ -1,5 +1,7 @@
 # Golang any to any value copying
 
+[![GoDoc](https://godoc.org/github.com/RangelReale/goxcopy?status.svg)](https://godoc.org/github.com/RangelReale/goxcopy)
+
 This library contains functions to copy any golang value to any other type.
 
 Any compatible conversion between slice, map and struct is supported.
