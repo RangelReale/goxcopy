@@ -16,7 +16,9 @@ type XCopyCreator interface {
 }
 
 func (c *Config) XCopyGetCreator(t reflect.Type) (XCopyCreator, error) {
-	switch rprim.IndirectType(t).Kind() {
+	tkind := rprim.UnderliningTypeKind(t)
+
+	switch tkind {
 	case reflect.Struct:
 		return &copyCreator_Struct{c: c, t: t}, nil
 	case reflect.Map:
@@ -28,7 +30,7 @@ func (c *Config) XCopyGetCreator(t reflect.Type) (XCopyCreator, error) {
 		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128, reflect.String, reflect.Interface:
 		return &copyCreator_Primitive{c: c, t: t}, nil
 	}
-	return nil, fmt.Errorf("Kind not supported: %s", t.Kind().String())
+	return nil, fmt.Errorf("Kind not supported: %s", tkind.String())
 }
 
 //
@@ -54,7 +56,7 @@ func (c *copyCreator_Struct) SetCurrentValue(current reflect.Value) error {
 		forceduplicate := !((c.c.Flags & XCF_OVERWRITE_EXISTING) == XCF_OVERWRITE_EXISTING)
 
 		// Check if the first field is settable
-		if !forceduplicate && (reflect.Indirect(current).NumField() == 0 || reflect.Indirect(current).Field(0).CanSet()) {
+		if !forceduplicate && (rprim.UnderliningValue(current).NumField() == 0 || rprim.UnderliningValue(current).Field(0).CanSet()) {
 			c.v = current
 		} else {
 			if forceduplicate || (c.c.Flags&XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE) == XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE {
@@ -68,7 +70,7 @@ func (c *copyCreator_Struct) SetCurrentValue(current reflect.Value) error {
 				return fmt.Errorf("Struct field is not settable")
 			}
 		}
-		c.it = rprim.IndirectType(c.t)
+		c.it = rprim.UnderliningType(c.t)
 	}
 	return nil
 }
@@ -115,7 +117,7 @@ func (c *copyCreator_Struct) SetField(index reflect.Value, value reflect.Value) 
 		return nil
 	}
 
-	fieldValue := reflect.Indirect(c.v).FieldByName(fieldType.Name)
+	fieldValue := rprim.UnderliningValue(c.v).FieldByName(fieldType.Name)
 	if !fieldValue.CanSet() {
 		return fmt.Errorf("Struct field %s is not settable", fieldname)
 	}
@@ -136,7 +138,7 @@ func (c *copyCreator_Struct) ensureValue() {
 		} else {
 			c.v = reflect.New(c.t).Elem()
 		}
-		c.it = rprim.IndirectType(c.t)
+		c.it = rprim.UnderliningType(c.t)
 	}
 }
 
@@ -187,7 +189,7 @@ func (c *copyCreator_Map) Create() (reflect.Value, error) {
 
 func (c *copyCreator_Map) SetField(index reflect.Value, value reflect.Value) error {
 	// convert index to the map index type
-	mapindex, err := c.c.RprimConfig.Convert(index, rprim.IndirectType(c.t).Key())
+	mapindex, err := c.c.RprimConfig.Convert(index, rprim.UnderliningType(c.t).Key())
 	if err != nil {
 		return err
 	}
@@ -250,6 +252,9 @@ func (c *copyCreator_Slice) SetCurrentValue(current reflect.Value) error {
 	if !current.IsNil() {
 		forceduplicate := !((c.c.Flags & XCF_OVERWRITE_EXISTING) == XCF_OVERWRITE_EXISTING)
 		if !forceduplicate {
+			if current.Kind() != reflect.Ptr {
+				return errors.New("Slice is not settable")
+			}
 			c.v = current
 		} else {
 			// duplicate the slice
@@ -278,22 +283,35 @@ func (c *copyCreator_Slice) SetField(index reflect.Value, value reflect.Value) e
 	c.ensureValue()
 
 	// Add zero values until the index
-	for int(sliceindex.Int()) >= c.v.Len() {
-		c.v = reflect.Append(c.v, reflect.Zero(c.t.Elem()))
+	for int(sliceindex.Int()) >= rprim.UnderliningValue(c.v).Len() {
+		//c.v = reflect.Append(c.v, reflect.Zero(c.t.Elem()))
+		c.append()
 	}
 
 	currentValue := reflect.Value{}
-	if int(sliceindex.Int()) < c.v.Len() {
-		currentValue = c.v.Index(int(sliceindex.Int()))
+	if int(sliceindex.Int()) < rprim.UnderliningValue(c.v).Len() {
+		currentValue = rprim.UnderliningValue(c.v).Index(int(sliceindex.Int()))
 	}
 
-	cv, err := c.c.XCopyUsingExistingIfValid(value, c.t.Elem(), currentValue)
+	cv, err := c.c.XCopyUsingExistingIfValid(value, rprim.UnderliningType(c.t).Elem(), currentValue)
 	if err != nil {
 		return err
 	}
 
-	c.v.Index(int(sliceindex.Int())).Set(cv)
+	rprim.UnderliningValue(c.v).Index(int(sliceindex.Int())).Set(cv)
 	return nil
+}
+
+func (c *copyCreator_Slice) append() {
+	if c.v.Kind() == reflect.Slice {
+		c.v = reflect.Append(c.v, reflect.Zero(c.t.Elem()))
+	} else if c.v.Kind() == reflect.Ptr {
+		cur := c.v.Elem()
+		cur = reflect.Append(cur, reflect.Zero(rprim.IndirectType(c.t).Elem()))
+		c.v.Elem().Set(cur)
+	} else {
+		panic("Not possible")
+	}
 }
 
 func (c *copyCreator_Slice) ensureValue() {

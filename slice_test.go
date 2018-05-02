@@ -72,7 +72,7 @@ func TestSliceToSliceExistingInplace(t *testing.T) {
 	}
 
 	_, err := NewConfig().SetFlags(XCF_OVERWRITE_EXISTING).
-		CopyUsingExisting(s, xsd)
+		CopyUsingExisting(s, &xsd)
 	if err != nil {
 		t.Fatal(err)
 	}

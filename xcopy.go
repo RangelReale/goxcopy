@@ -118,9 +118,9 @@ func (c *Config) XCopyToExisting(src reflect.Value, currentValue reflect.Value) 
 }
 
 func (c *Config) XCopyUsingExistingIfValid(src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
-	stype := rprim.IndirectType(src.Type())
+	skind := rprim.UnderliningValueKind(src)
 
-	switch stype.Kind() {
+	switch skind {
 	case reflect.Struct:
 		return c.copyToNew_Struct(src, destType, currentValue)
 	case reflect.Map:
@@ -132,14 +132,14 @@ func (c *Config) XCopyUsingExistingIfValid(src reflect.Value, destType reflect.T
 		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128, reflect.String, reflect.Interface:
 		return c.copyToNew_Primitive(src, destType, currentValue)
 	}
-	return reflect.Value{}, fmt.Errorf("Kind not supported: %s", stype.Kind().String())
+	return reflect.Value{}, fmt.Errorf("Kind not supported: %s", skind.String())
 }
 
 //
 // Struct
 //
 func (c *Config) copyToNew_Struct(src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
-	srcValue := reflect.Indirect(src)
+	srcValue := rprim.UnderliningValue(src)
 
 	destCreator, err := c.XCopyGetCreator(destType)
 	if err != nil {
@@ -186,7 +186,7 @@ func (c *Config) copyToNew_Struct(src reflect.Value, destType reflect.Type, curr
 // Map
 //
 func (c *Config) copyToNew_Map(src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
-	srcValue := reflect.Indirect(src)
+	srcValue := rprim.UnderliningValue(src)
 
 	destCreator, err := c.XCopyGetCreator(destType)
 	if err != nil {
@@ -218,7 +218,7 @@ func (c *Config) copyToNew_Map(src reflect.Value, destType reflect.Type, current
 // Slice
 //
 func (c *Config) copyToNew_Slice(src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
-	srcValue := reflect.Indirect(src)
+	srcValue := rprim.UnderliningValue(src)
 
 	destCreator, err := c.XCopyGetCreator(destType)
 	if err != nil {
