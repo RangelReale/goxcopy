@@ -86,15 +86,36 @@ func (c *copyCreator_Struct) SetField(index reflect.Value, value reflect.Value) 
 
 	c.ensureValue()
 
-	fieldType, ok := c.it.FieldByName(fieldname)
-	if !ok {
+	var fieldType reflect.StructField
+	var fieldTypeOk bool
+
+	for fi := 0; fi < c.it.NumField(); fi++ {
+		f := c.it.Field(fi)
+		fname := f.Name
+
+		tag_fields := c.c.GetStructTagFields(f)
+		if len(tag_fields) > 0 {
+			if tag_fields[0] == "-" {
+				fname = "" // skip
+			} else {
+				fname = tag_fields[0]
+			}
+		}
+
+		if fname == fieldname {
+			fieldType = f
+			fieldTypeOk = true
+			break
+		}
+	}
+	if !fieldTypeOk {
 		if (c.c.Flags & XCF_ERROR_IF_STRUCT_FIELD_MISSING) == XCF_ERROR_IF_STRUCT_FIELD_MISSING {
 			return fmt.Errorf("Field %s missing on struct", fieldname)
 		}
 		return nil
 	}
 
-	fieldValue := reflect.Indirect(c.v).FieldByName(fieldname)
+	fieldValue := reflect.Indirect(c.v).FieldByName(fieldType.Name)
 	if !fieldValue.CanSet() {
 		return fmt.Errorf("Struct field %s is not settable", fieldname)
 	}

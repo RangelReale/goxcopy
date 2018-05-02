@@ -40,7 +40,7 @@ const (
 	XCF_OVERWRITE_EXISTING = 1
 	// Whether to allow creating a new item from a copy if the item is not assignable (only if using existing)
 	XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE = 2
-	//
+	// Return error if source struct founds no corresponding field on the target
 	XCF_ERROR_IF_STRUCT_FIELD_MISSING = 4
 )
 
@@ -48,20 +48,23 @@ const (
 // Config
 //
 type Config struct {
-	Flags       uint
-	RprimConfig *rprim.Config
+	Flags         uint
+	StructTagName string
+	RprimConfig   *rprim.Config
 }
 
 func NewConfig() *Config {
 	return &Config{
-		RprimConfig: rprim.NewConfig(),
+		StructTagName: "goxcopy",
+		RprimConfig:   rprim.NewConfig(),
 	}
 }
 
 func (c Config) Dup() *Config {
 	return &Config{
-		Flags:       c.Flags,
-		RprimConfig: c.RprimConfig.Dup(),
+		Flags:         c.Flags,
+		StructTagName: c.StructTagName,
+		RprimConfig:   c.RprimConfig.Dup(),
 	}
 }
 
@@ -157,9 +160,22 @@ func (c *Config) copyToNew_Struct(src reflect.Value, destType reflect.Type, curr
 			continue
 		}
 
-		err := destCreator.SetField(reflect.ValueOf(srcFieldType.Name), srcField)
-		if err != nil {
-			return reflect.Value{}, fmt.Errorf("Error copying from struct field %s: %v", srcFieldType.Name, err)
+		targetFieldName := srcFieldType.Name
+
+		tag_fields := c.GetStructTagFields(srcFieldType)
+		if len(tag_fields) > 0 {
+			if tag_fields[0] == "-" {
+				targetFieldName = "" // skip
+			} else {
+				targetFieldName = tag_fields[0]
+			}
+		}
+
+		if targetFieldName != "" {
+			err := destCreator.SetField(reflect.ValueOf(targetFieldName), srcField)
+			if err != nil {
+				return reflect.Value{}, fmt.Errorf("Error copying from struct field %s: %v", targetFieldName, err)
+			}
 		}
 	}
 

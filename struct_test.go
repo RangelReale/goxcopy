@@ -152,3 +152,35 @@ func TestStructToPrimitive(t *testing.T) {
 		t.Fatal("Should not allow to copy struct to primitive")
 	}
 }
+
+func TestStructTag(t *testing.T) {
+	type s_type struct {
+		Value1 string `goxcopy:"New_value1"`
+		Value2 string
+	}
+
+	type d_type struct {
+		Value1     string
+		New_value1 string
+		New_value2 string `goxcopy:"Value2"`
+	}
+
+	s := &s_type{
+		Value1: "u_value_1",
+		Value2: "u_value_2",
+	}
+
+	d, err := CopyToNew(s, reflect.TypeOf(&d_type{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dt, ok := d.(*d_type)
+	if !ok {
+		t.Fatal("Result isn't *d_type")
+	}
+
+	if dt.Value1 != "" || dt.New_value1 != "u_value_1" || dt.New_value2 != "u_value_2" {
+		t.Fatal("Value not set as expected")
+	}
+}
