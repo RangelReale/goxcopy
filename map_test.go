@@ -148,3 +148,26 @@ func TestMapToSliceStringKey(t *testing.T) {
 		t.Fatal("Values are different")
 	}
 }
+
+func TestMapToSliceInsideStruct(t *testing.T) {
+	type sx struct {
+		Value1 string
+		Value2 []string
+	}
+
+	vsx := map[string]interface{}{
+		"Value1": "first value",
+		"Value2": []string{"one", "two"},
+	}
+
+	ret := &sx{}
+
+	err := CopyToExisting(vsx, ret)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if ret.Value1 != "first value" && len(ret.Value2) != 2 && ret.Value2[0] != "one" && ret.Value2[1] != "two" {
+		t.Fatal("Values are different")
+	}
+}
