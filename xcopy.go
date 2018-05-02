@@ -76,6 +76,8 @@ type Config struct {
 	Flags uint
 	// Name of the struct field tag to find out the element name (default: goxcopy)
 	StructTagName string
+	// Field map
+	FieldMap map[string]*FieldMap
 	// Configuration of the primitive type converter
 	RprimConfig *rprim.Config
 }
@@ -89,12 +91,19 @@ func NewConfig() *Config {
 }
 
 // Duplicates the Config
-func (c Config) Dup() *Config {
-	return &Config{
+func (c *Config) Dup() *Config {
+	ret := &Config{
 		Flags:         c.Flags,
 		StructTagName: c.StructTagName,
 		RprimConfig:   c.RprimConfig.Dup(),
 	}
+	if c.FieldMap != nil {
+		ret.FieldMap = make(map[string]*FieldMap)
+		for fn, fv := range c.FieldMap {
+			ret.FieldMap[fn] = fv
+		}
+	}
+	return ret
 }
 
 // Reset the config flags
@@ -113,6 +122,21 @@ func (c *Config) AddFlags(flags uint) *Config {
 func (c *Config) SetRprimConfig(rc *rprim.Config) *Config {
 	c.RprimConfig = rc
 	return c
+}
+
+func (c *Config) SetFieldMap(fm map[string]*FieldMap) *Config {
+	c.FieldMap = fm
+	return c
+}
+
+func (c *Config) GetFieldMap(fieldname string) *FieldMap {
+	if c.FieldMap == nil {
+		return nil
+	}
+	if fm, ok := c.FieldMap[fieldname]; ok {
+		return fm
+	}
+	return nil
 }
 
 // Copy a source variable to a new instance of the passed type.
@@ -225,6 +249,14 @@ func (c *Config) copyToNew_Struct(ctx *Context, src reflect.Value, destType refl
 		}
 
 		if targetFieldName != "" {
+			if fieldmap := c.GetFieldMap(ctx.FieldsAsStringAppending(reflect.ValueOf(targetFieldName))); fieldmap != nil {
+				if fieldmap.Fieldname != nil {
+					targetFieldName = *fieldmap.Fieldname
+				}
+			}
+		}
+
+		if targetFieldName != "" {
 			fv := reflect.ValueOf(targetFieldName)
 
 			ctx.PushField(fv)
@@ -259,8 +291,15 @@ func (c *Config) copyToNew_Map(ctx *Context, src reflect.Value, destType reflect
 	for _, k := range srcValue.MapKeys() {
 		srcField := srcValue.MapIndex(k)
 
-		ctx.PushField(k)
-		err := destCreator.SetField(k, srcField)
+		kindex := k
+		if fieldmap := c.GetFieldMap(ctx.FieldsAsStringAppending(kindex)); fieldmap != nil {
+			if fieldmap.Fieldname != nil {
+				kindex = reflect.ValueOf(*fieldmap.Fieldname)
+			}
+		}
+
+		ctx.PushField(kindex)
+		err := destCreator.SetField(kindex, srcField)
 		ctx.PopField()
 
 		if err != nil {
@@ -292,8 +331,15 @@ func (c *Config) copyToNew_Slice(ctx *Context, src reflect.Value, destType refle
 
 		fv := reflect.ValueOf(i)
 
-		ctx.PushField(fv)
-		err := destCreator.SetField(fv, srcField)
+		fvindex := fv
+		if fieldmap := c.GetFieldMap(ctx.FieldsAsStringAppending(fv)); fieldmap != nil {
+			if fieldmap.Fieldname != nil {
+				fvindex = reflect.ValueOf(*fieldmap.Fieldname)
+			}
+		}
+
+		ctx.PushField(fvindex)
+		err := destCreator.SetField(fvindex, srcField)
 		ctx.PopField()
 
 		if err != nil {

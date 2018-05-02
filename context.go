@@ -33,8 +33,17 @@ func (c *Context) PopField() {
 }
 
 func (c *Context) FieldsAsStringSlice() []string {
+	return c.FieldsAsStringSliceAppending(reflect.Value{})
+}
+
+func (c *Context) FieldsAsStringSliceAppending(v reflect.Value) []string {
 	var ret []string
-	for _, f := range c.Fields {
+	var dst []reflect.Value
+	copy(dst, c.Fields)
+	if v.IsValid() {
+		dst = append(dst, v)
+	}
+	for _, f := range dst {
 		s, err := rprim.ConvertToString(f)
 		if err != nil {
 			ret = append(ret, "<unknown>")
@@ -47,4 +56,8 @@ func (c *Context) FieldsAsStringSlice() []string {
 
 func (c *Context) FieldsAsString() string {
 	return strings.Join(c.FieldsAsStringSlice(), ".")
+}
+
+func (c *Context) FieldsAsStringAppending(fieldname reflect.Value) string {
+	return strings.Join(c.FieldsAsStringSliceAppending(fieldname), ".")
 }
