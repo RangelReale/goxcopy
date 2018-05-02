@@ -7,30 +7,54 @@ import (
 	"github.com/RangelReale/rprim"
 )
 
+// Copy a source variable to a destination variable, overwriting it.
+// The destination variable must be settable.
+// This is an alias for "CopyToExisting"
+// The src variable is never changed in any circunstance.
 func Copy(from interface{}, to interface{}) error {
 	return CopyToExisting(from, to)
 }
 
+// Copy a source variable to a new instance of the passed type.
+// The src variable is never changed in any circunstance.
 func CopyToNew(src interface{}, destType reflect.Type) (interface{}, error) {
 	return NewConfig().CopyToNew(src, destType)
 }
 
+// Copy a source variable to a new instance of the type of the passed value.
+// The passed variable is used to initialize the new instance value, but is not
+// changed in any way.
+// The src and currentValue variable are never changed in any circunstance.
 func CopyUsingExisting(src interface{}, currentValue interface{}) (interface{}, error) {
 	return NewConfig().CopyUsingExisting(src, currentValue)
 }
 
+// Copy a source variable to a destination variable, overwriting it.
+// The destination variable must be settable.
+// This is an alias for "CopyToExisting"
+// The src variable is never changed in any circunstance.
 func CopyToExisting(src interface{}, currentValue interface{}) error {
 	return NewConfig().CopyToExisting(src, currentValue)
 }
 
+// Copy a source variable to a new instance of the passed type.
+// The src variable is never changed in any circunstance.
 func XCopyToNew(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
 	return NewConfig().XCopyToNew(NewContext(), src, destType)
 }
 
-func XCopyFromExisting(src reflect.Value, currentValue reflect.Value) (reflect.Value, error) {
+// Copy a source variable to a new instance of the type of the passed value.
+// The passed variable is used to initialize the new instance value, but is not
+// changed in any way.
+// The src and currentValue variable are never changed in any circunstance.
+func XCopyUsingExisting(src reflect.Value, currentValue reflect.Value) (reflect.Value, error) {
 	return NewConfig().XCopyUsingExisting(NewContext(), src, currentValue)
 }
 
+// Copy a source variable to a destination variable, overwriting it.
+// The destination variable must be settable.
+// This is an alias for "CopyToExisting"
+// The src variable is never changed in any circunstance.
 func XCopyToExisting(src reflect.Value, currentValue reflect.Value) error {
 	return NewConfig().XCopyToExisting(NewContext(), src, currentValue)
 }
@@ -45,14 +69,18 @@ const (
 )
 
 //
-// Config
+// Copy configuration
 //
 type Config struct {
-	Flags         uint
+	// XCF_* flag bitmask
+	Flags uint
+	// Name of the struct field tag to find out the element name (default: goxcopy)
 	StructTagName string
-	RprimConfig   *rprim.Config
+	// Configuration of the primitive type converter
+	RprimConfig *rprim.Config
 }
 
+// Creates a new default Config
 func NewConfig() *Config {
 	return &Config{
 		StructTagName: "goxcopy",
@@ -60,6 +88,7 @@ func NewConfig() *Config {
 	}
 }
 
+// Duplicates the Config
 func (c Config) Dup() *Config {
 	return &Config{
 		Flags:         c.Flags,
@@ -68,21 +97,26 @@ func (c Config) Dup() *Config {
 	}
 }
 
+// Reset the config flags
 func (c *Config) SetFlags(flags uint) *Config {
 	c.Flags = flags
 	return c
 }
 
+// Add flag bitmask to the config
 func (c *Config) AddFlags(flags uint) *Config {
 	c.Flags |= flags
 	return c
 }
 
+// Set the rprim config
 func (c *Config) SetRprimConfig(rc *rprim.Config) *Config {
 	c.RprimConfig = rc
 	return c
 }
 
+// Copy a source variable to a new instance of the passed type.
+// The src variable is never changed in any circunstance.
 func (c *Config) CopyToNew(src interface{}, destType reflect.Type) (interface{}, error) {
 	ret, err := c.XCopyToNew(NewContext(), reflect.ValueOf(src), destType)
 	if err != nil {
@@ -91,6 +125,10 @@ func (c *Config) CopyToNew(src interface{}, destType reflect.Type) (interface{},
 	return ret.Interface(), nil
 }
 
+// Copy a source variable to a new instance of the type of the passed value.
+// The passed variable is used to initialize the new instance value, but is not
+// changed in any way.
+// The src and currentValue variable are never changed in any circunstance.
 func (c *Config) CopyUsingExisting(src interface{}, currentValue interface{}) (interface{}, error) {
 	ret, err := c.XCopyUsingExisting(NewContext(), reflect.ValueOf(src), reflect.ValueOf(currentValue))
 	if err != nil {
@@ -99,24 +137,39 @@ func (c *Config) CopyUsingExisting(src interface{}, currentValue interface{}) (i
 	return ret.Interface(), nil
 }
 
+// Copy a source variable to a destination variable, overwriting it.
+// The destination variable must be settable.
+// This is an alias for "CopyToExisting"
+// The src variable is never changed in any circunstance.
 func (c *Config) CopyToExisting(src interface{}, currentValue interface{}) error {
 	_, err := c.Dup().AddFlags(XCF_OVERWRITE_EXISTING).XCopyUsingExisting(NewContext(), reflect.ValueOf(src), reflect.ValueOf(currentValue))
 	return err
 }
 
+// Copy a source variable to a new instance of the passed type.
+// The src variable is never changed in any circunstance.
 func (c *Config) XCopyToNew(ctx *Context, src reflect.Value, destType reflect.Type) (reflect.Value, error) {
 	return c.XCopyUsingExistingIfValid(ctx, src, destType, reflect.Value{})
 }
 
+// Copy a source variable to a new instance of the type of the passed value.
+// The passed variable is used to initialize the new instance value, but is not
+// changed in any way.
+// The src and currentValue variable are never changed in any circunstance.
 func (c *Config) XCopyUsingExisting(ctx *Context, src reflect.Value, currentValue reflect.Value) (reflect.Value, error) {
 	return c.XCopyUsingExistingIfValid(ctx, src, reflect.TypeOf(currentValue.Interface()), currentValue)
 }
 
+// Copy a source variable to a destination variable, overwriting it.
+// The destination variable must be settable.
+// This is an alias for "CopyToExisting"
+// The src variable is never changed in any circunstance.
 func (c *Config) XCopyToExisting(ctx *Context, src reflect.Value, currentValue reflect.Value) error {
 	_, err := c.Dup().AddFlags(XCF_OVERWRITE_EXISTING).XCopyUsingExistingIfValid(ctx, src, reflect.TypeOf(currentValue.Interface()), currentValue)
 	return err
 }
 
+// The underling function that does the other functions work.
 func (c *Config) XCopyUsingExistingIfValid(ctx *Context, src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
 	skind := rprim.UnderliningValueKind(src)
 
@@ -136,7 +189,7 @@ func (c *Config) XCopyUsingExistingIfValid(ctx *Context, src reflect.Value, dest
 }
 
 //
-// Struct
+// Struct copy source
 //
 func (c *Config) copyToNew_Struct(ctx *Context, src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
 	srcValue := rprim.UnderliningValue(src)
@@ -188,7 +241,7 @@ func (c *Config) copyToNew_Struct(ctx *Context, src reflect.Value, destType refl
 }
 
 //
-// Map
+// Map copy source
 //
 func (c *Config) copyToNew_Map(ctx *Context, src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
 	srcValue := rprim.UnderliningValue(src)
@@ -219,7 +272,7 @@ func (c *Config) copyToNew_Map(ctx *Context, src reflect.Value, destType reflect
 }
 
 //
-// Slice
+// Slice copy source
 //
 func (c *Config) copyToNew_Slice(ctx *Context, src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
 	srcValue := rprim.UnderliningValue(src)
@@ -252,7 +305,7 @@ func (c *Config) copyToNew_Slice(ctx *Context, src reflect.Value, destType refle
 }
 
 //
-// Primitive
+// Primitive copy source
 //
 func (c *Config) copyToNew_Primitive(ctx *Context, src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
 	destCreator, err := c.XCopyGetCreator(ctx, destType)

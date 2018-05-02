@@ -1,7 +1,10 @@
 package goxcopy
 
+// Error type
 type Error struct {
+	// Underlining error
 	Err error
+	// The context where the error occured
 	Ctx *Context
 }
 

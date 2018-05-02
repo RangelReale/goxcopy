@@ -8,13 +8,19 @@ import (
 	"github.com/RangelReale/rprim"
 )
 
+// The creator interface represent the target of a copy.
 type XCopyCreator interface {
+	// The type that will be created.
 	Type() reflect.Type
+	// Creates an instance of the value
 	Create() (reflect.Value, error)
+	// Sets the existing value.
 	SetCurrentValue(current reflect.Value) error
+	// Sets a field value.
 	SetField(index reflect.Value, value reflect.Value) error
 }
 
+// Gets a creator for a type.
 func (c *Config) XCopyGetCreator(ctx *Context, t reflect.Type) (XCopyCreator, error) {
 	tkind := rprim.UnderliningTypeKind(t)
 
