@@ -24,15 +24,15 @@ func CopyToExisting(src interface{}, currentValue interface{}) error {
 }
 
 func XCopyToNew(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
-	return NewConfig().XCopyToNew(src, destType)
+	return NewConfig().XCopyToNew(NewContext(), src, destType)
 }
 
 func XCopyFromExisting(src reflect.Value, currentValue reflect.Value) (reflect.Value, error) {
-	return NewConfig().XCopyUsingExisting(src, currentValue)
+	return NewConfig().XCopyUsingExisting(NewContext(), src, currentValue)
 }
 
 func XCopyToExisting(src reflect.Value, currentValue reflect.Value) error {
-	return NewConfig().XCopyToExisting(src, currentValue)
+	return NewConfig().XCopyToExisting(NewContext(), src, currentValue)
 }
 
 const (
@@ -84,7 +84,7 @@ func (c *Config) SetRprimConfig(rc *rprim.Config) *Config {
 }
 
 func (c *Config) CopyToNew(src interface{}, destType reflect.Type) (interface{}, error) {
-	ret, err := c.XCopyToNew(reflect.ValueOf(src), destType)
+	ret, err := c.XCopyToNew(NewContext(), reflect.ValueOf(src), destType)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +92,7 @@ func (c *Config) CopyToNew(src interface{}, destType reflect.Type) (interface{},
 }
 
 func (c *Config) CopyUsingExisting(src interface{}, currentValue interface{}) (interface{}, error) {
-	ret, err := c.XCopyUsingExisting(reflect.ValueOf(src), reflect.ValueOf(currentValue))
+	ret, err := c.XCopyUsingExisting(NewContext(), reflect.ValueOf(src), reflect.ValueOf(currentValue))
 	if err != nil {
 		return nil, err
 	}
@@ -100,48 +100,48 @@ func (c *Config) CopyUsingExisting(src interface{}, currentValue interface{}) (i
 }
 
 func (c *Config) CopyToExisting(src interface{}, currentValue interface{}) error {
-	_, err := c.Dup().AddFlags(XCF_OVERWRITE_EXISTING).XCopyUsingExisting(reflect.ValueOf(src), reflect.ValueOf(currentValue))
+	_, err := c.Dup().AddFlags(XCF_OVERWRITE_EXISTING).XCopyUsingExisting(NewContext(), reflect.ValueOf(src), reflect.ValueOf(currentValue))
 	return err
 }
 
-func (c *Config) XCopyToNew(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
-	return c.XCopyUsingExistingIfValid(src, destType, reflect.Value{})
+func (c *Config) XCopyToNew(ctx *Context, src reflect.Value, destType reflect.Type) (reflect.Value, error) {
+	return c.XCopyUsingExistingIfValid(ctx, src, destType, reflect.Value{})
 }
 
-func (c *Config) XCopyUsingExisting(src reflect.Value, currentValue reflect.Value) (reflect.Value, error) {
-	return c.XCopyUsingExistingIfValid(src, reflect.TypeOf(currentValue.Interface()), currentValue)
+func (c *Config) XCopyUsingExisting(ctx *Context, src reflect.Value, currentValue reflect.Value) (reflect.Value, error) {
+	return c.XCopyUsingExistingIfValid(ctx, src, reflect.TypeOf(currentValue.Interface()), currentValue)
 }
 
-func (c *Config) XCopyToExisting(src reflect.Value, currentValue reflect.Value) error {
-	_, err := c.Dup().AddFlags(XCF_OVERWRITE_EXISTING).XCopyUsingExistingIfValid(src, reflect.TypeOf(currentValue.Interface()), currentValue)
+func (c *Config) XCopyToExisting(ctx *Context, src reflect.Value, currentValue reflect.Value) error {
+	_, err := c.Dup().AddFlags(XCF_OVERWRITE_EXISTING).XCopyUsingExistingIfValid(ctx, src, reflect.TypeOf(currentValue.Interface()), currentValue)
 	return err
 }
 
-func (c *Config) XCopyUsingExistingIfValid(src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
+func (c *Config) XCopyUsingExistingIfValid(ctx *Context, src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
 	skind := rprim.UnderliningValueKind(src)
 
 	switch skind {
 	case reflect.Struct:
-		return c.copyToNew_Struct(src, destType, currentValue)
+		return c.copyToNew_Struct(ctx, src, destType, currentValue)
 	case reflect.Map:
-		return c.copyToNew_Map(src, destType, currentValue)
+		return c.copyToNew_Map(ctx, src, destType, currentValue)
 	case reflect.Slice:
-		return c.copyToNew_Slice(src, destType, currentValue)
+		return c.copyToNew_Slice(ctx, src, destType, currentValue)
 	case reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32,
 		reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,
 		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128, reflect.String, reflect.Interface:
-		return c.copyToNew_Primitive(src, destType, currentValue)
+		return c.copyToNew_Primitive(ctx, src, destType, currentValue)
 	}
-	return reflect.Value{}, fmt.Errorf("Kind not supported: %s", skind.String())
+	return reflect.Value{}, newError(fmt.Errorf("Kind not supported: %s", skind.String()), ctx.Dup())
 }
 
 //
 // Struct
 //
-func (c *Config) copyToNew_Struct(src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
+func (c *Config) copyToNew_Struct(ctx *Context, src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
 	srcValue := rprim.UnderliningValue(src)
 
-	destCreator, err := c.XCopyGetCreator(destType)
+	destCreator, err := c.XCopyGetCreator(ctx, destType)
 	if err != nil {
 		return reflect.Value{}, err
 	}
@@ -172,9 +172,14 @@ func (c *Config) copyToNew_Struct(src reflect.Value, destType reflect.Type, curr
 		}
 
 		if targetFieldName != "" {
-			err := destCreator.SetField(reflect.ValueOf(targetFieldName), srcField)
+			fv := reflect.ValueOf(targetFieldName)
+
+			ctx.PushField(fv)
+			err := destCreator.SetField(fv, srcField)
+			ctx.PopField()
+
 			if err != nil {
-				return reflect.Value{}, fmt.Errorf("Error copying from struct field %s: %v", targetFieldName, err)
+				return reflect.Value{}, err
 			}
 		}
 	}
@@ -185,10 +190,10 @@ func (c *Config) copyToNew_Struct(src reflect.Value, destType reflect.Type, curr
 //
 // Map
 //
-func (c *Config) copyToNew_Map(src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
+func (c *Config) copyToNew_Map(ctx *Context, src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
 	srcValue := rprim.UnderliningValue(src)
 
-	destCreator, err := c.XCopyGetCreator(destType)
+	destCreator, err := c.XCopyGetCreator(ctx, destType)
 	if err != nil {
 		return reflect.Value{}, err
 	}
@@ -201,13 +206,12 @@ func (c *Config) copyToNew_Map(src reflect.Value, destType reflect.Type, current
 	for _, k := range srcValue.MapKeys() {
 		srcField := srcValue.MapIndex(k)
 
+		ctx.PushField(k)
 		err := destCreator.SetField(k, srcField)
+		ctx.PopField()
+
 		if err != nil {
-			kstr, kerr := c.RprimConfig.ConvertToString(k)
-			if kerr != nil {
-				kstr = "<unknown>"
-			}
-			return reflect.Value{}, fmt.Errorf("Error copying from map index %s: %v", kstr, err)
+			return reflect.Value{}, err
 		}
 	}
 
@@ -217,10 +221,10 @@ func (c *Config) copyToNew_Map(src reflect.Value, destType reflect.Type, current
 //
 // Slice
 //
-func (c *Config) copyToNew_Slice(src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
+func (c *Config) copyToNew_Slice(ctx *Context, src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
 	srcValue := rprim.UnderliningValue(src)
 
-	destCreator, err := c.XCopyGetCreator(destType)
+	destCreator, err := c.XCopyGetCreator(ctx, destType)
 	if err != nil {
 		return reflect.Value{}, err
 	}
@@ -233,9 +237,14 @@ func (c *Config) copyToNew_Slice(src reflect.Value, destType reflect.Type, curre
 	for i := 0; i < srcValue.Len(); i++ {
 		srcField := srcValue.Index(i)
 
-		err := destCreator.SetField(reflect.ValueOf(i), srcField)
+		fv := reflect.ValueOf(i)
+
+		ctx.PushField(fv)
+		err := destCreator.SetField(fv, srcField)
+		ctx.PopField()
+
 		if err != nil {
-			return reflect.Value{}, fmt.Errorf("Error copying from slice index %d: %v", i, err)
+			return reflect.Value{}, err
 		}
 	}
 
@@ -245,8 +254,8 @@ func (c *Config) copyToNew_Slice(src reflect.Value, destType reflect.Type, curre
 //
 // Primitive
 //
-func (c *Config) copyToNew_Primitive(src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
-	destCreator, err := c.XCopyGetCreator(destType)
+func (c *Config) copyToNew_Primitive(ctx *Context, src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
+	destCreator, err := c.XCopyGetCreator(ctx, destType)
 	if err != nil {
 		return reflect.Value{}, err
 	}

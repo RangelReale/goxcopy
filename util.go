@@ -18,3 +18,11 @@ func (c *Config) GetStructTagFields(field reflect.StructField) []string {
 
 	return ret
 }
+
+func ReverseStrSlice(str []string) []string {
+	var ret []string
+	for i := len(str) - 1; i >= 0; i-- {
+		ret = append(ret, str[i])
+	}
+	return ret
+}
