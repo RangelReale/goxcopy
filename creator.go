@@ -196,30 +196,31 @@ func (c *copyCreator_Map) SetCurrentValue(current reflect.Value) error {
 		return newError(fmt.Errorf("Destination is not of the same type (%s -> %s)", current.Type().String(), c.t.String()), c.ctx.Dup())
 	}
 
-	forceduplicate := !((c.c.Flags & XCF_OVERWRITE_EXISTING) == XCF_OVERWRITE_EXISTING)
 	if current.IsValid() {
-		if !current.IsNil() {
-			if !forceduplicate {
-				if current.Kind() != reflect.Ptr {
-					return newError(errors.New("Map is not settable"), c.ctx.Dup())
-				}
+		// check if must write on the passed value
+		overwrite_existing := (c.c.Flags & XCF_OVERWRITE_EXISTING) == XCF_OVERWRITE_EXISTING
+		need_duplicate := !overwrite_existing
+
+		if overwrite_existing {
+			if current.Kind() == reflect.Ptr || current.CanSet() {
+				// If is nil pointer, just set it, the value will be set later if the source is not nil
 				c.v = current
-				if c.v.Elem().IsNil() {
-					c.v.Elem().Set(reflect.MakeMap(c.t.Elem()))
-				}
 			} else {
-				// duplicate the map
+				// fields are not settable, duplicate value if allowed
+				need_duplicate = true
+			}
+		}
+
+		if need_duplicate {
+			if !overwrite_existing || (c.c.Flags&XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE) == XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE {
+				// Create a new instance copying the value
 				newValue, err := c.c.XCopyToNew(c.ctx, current, c.t)
 				if err != nil {
 					return err
 				}
 				c.v = newValue
-			}
-		} else {
-			if !forceduplicate {
-				if current.Kind() != reflect.Ptr {
-					return newError(errors.New("Map is not settable"), c.ctx.Dup())
-				}
+			} else {
+				return newError(fmt.Errorf("Slice is not settable and duplicates are not allowed"), c.ctx.Dup())
 			}
 		}
 	}
