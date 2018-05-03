@@ -414,7 +414,10 @@ func (c *copyCreator_Slice) SetField(index reflect.Value, value reflect.Value) e
 
 	// Add zero values until the index
 	for int(sliceindex.Int()) >= uv.Len() {
-		c.append()
+		err = c.append()
+		if err != nil {
+			return err
+		}
 	}
 
 	currentValue := reflect.Value{}
@@ -431,13 +434,16 @@ func (c *copyCreator_Slice) SetField(index reflect.Value, value reflect.Value) e
 	return nil
 }
 
-func (c *copyCreator_Slice) append() {
+func (c *copyCreator_Slice) append() error {
 	v := rprim.UnderliningValue(c.v)
-	if v.CanSet() {
+	if v.Kind() == reflect.Array {
+		return newError(errors.New("Arrays cannot be appended"), c.ctx.Dup())
+	} else if v.CanSet() {
 		v.Set(reflect.Append(v, reflect.Zero(rprim.UnderliningType(c.t).Elem())))
 	} else {
-		panic("Should not happen")
+		return newError(errors.New("Slice/array is not settable"), c.ctx.Dup())
 	}
+	return nil
 }
 
 func (c *copyCreator_Slice) ensureValue() error {
