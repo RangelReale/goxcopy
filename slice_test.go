@@ -1,7 +1,6 @@
 package goxcopy
 
 import (
-	"github.com/davecgh/go-spew/spew"
 	"reflect"
 	"testing"
 )
@@ -72,8 +71,7 @@ func TestSliceToSliceExistingInplace(t *testing.T) {
 		"Existing item",
 	}
 
-	_, err := NewConfig().SetFlags(XCF_OVERWRITE_EXISTING).
-		CopyUsingExisting(s, &xsd)
+	err := NewConfig().CopyToExisting(s, &xsd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,12 +130,10 @@ func TestSliceUnderlining(t *testing.T) {
 	}
 	var dst ****[]string
 
-	err := CopyToExisting(src, dst)
+	err := CopyToExisting(src, &dst)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	spew.Dump(dst)
 
 	if dst == nil || *dst == nil || **dst == nil || ***dst == nil || ****dst == nil {
 		t.Fatal("Values are different")

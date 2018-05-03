@@ -329,20 +329,33 @@ func (c *copyCreator_Slice) SetCurrentValue(current reflect.Value) error {
 	if current.Type() != c.t {
 		return newError(fmt.Errorf("Destination is not of the same type (%s -> %s)", current.Type().String(), c.t.String()), c.ctx.Dup())
 	}
-	if !current.IsNil() {
-		forceduplicate := !((c.c.Flags & XCF_OVERWRITE_EXISTING) == XCF_OVERWRITE_EXISTING)
-		if !forceduplicate {
-			if current.Kind() != reflect.Ptr {
-				return newError(errors.New("Slice is not settable"), c.ctx.Dup())
+
+	if current.IsValid() {
+		// check if must write on the passed value
+		overwrite_existing := (c.c.Flags & XCF_OVERWRITE_EXISTING) == XCF_OVERWRITE_EXISTING
+		need_duplicate := !overwrite_existing
+
+		if overwrite_existing {
+			if current.Kind() == reflect.Ptr || current.CanSet() {
+				// If is nil pointer, just set it, the value will be set later if the source is not nil
+				c.v = current
+			} else {
+				// fields are not settable, duplicate value if allowed
+				need_duplicate = true
 			}
-			c.v = current
-		} else {
-			// duplicate the slice
-			newValue, err := c.c.XCopyToNew(c.ctx, current, c.t)
-			if err != nil {
-				return err
+		}
+
+		if need_duplicate {
+			if !overwrite_existing || (c.c.Flags&XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE) == XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE {
+				// Create a new instance copying the value
+				newValue, err := c.c.XCopyToNew(c.ctx, current, c.t)
+				if err != nil {
+					return err
+				}
+				c.v = newValue
+			} else {
+				return newError(fmt.Errorf("Slice is not settable and duplicates are not allowed"), c.ctx.Dup())
 			}
-			c.v = newValue
 		}
 	}
 	return nil
