@@ -71,7 +71,7 @@ func TestSliceToSliceExistingInplace(t *testing.T) {
 		"Existing item",
 	}
 
-	err := NewConfig().CopyToExisting(s, &xsd)
+	err := CopyToExisting(s, &xsd)
 	if err != nil {
 		t.Fatal(err)
 	}

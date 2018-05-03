@@ -82,6 +82,23 @@ func TestMapToMapExistingInplace(t *testing.T) {
 	}
 }
 
+func TestMapToMapExistingNil(t *testing.T) {
+	s := NewMT_Source()
+
+	var xsd map[string]interface{}
+
+	err := CopyToExisting(s, &xsd)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if s["String1"] != xsd["String1"] ||
+		s["Int1"] != xsd["Int1"] ||
+		s["Float1"] != xsd["Float1"] {
+		t.Fatal("Values are different")
+	}
+}
+
 func TestMapToStruct(t *testing.T) {
 	s := NewMT_Source()
 
