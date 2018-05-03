@@ -109,11 +109,14 @@ func (c *copyCreator_Struct) SetField(index reflect.Value, value reflect.Value) 
 		return err
 	}
 
+	ut := rprim.UnderliningType(c.t)
+	uv := rprim.UnderliningValue(c.v)
+
 	var fieldType reflect.StructField
 	var fieldTypeOk bool
 
-	for fi := 0; fi < rprim.UnderliningType(c.t).NumField(); fi++ {
-		f := rprim.UnderliningType(c.t).Field(fi)
+	for fi := 0; fi < ut.NumField(); fi++ {
+		f := ut.Field(fi)
 		fname := f.Name
 
 		tag_fields := c.c.GetStructTagFields(f)
@@ -138,7 +141,7 @@ func (c *copyCreator_Struct) SetField(index reflect.Value, value reflect.Value) 
 		return nil
 	}
 
-	fieldValue := rprim.UnderliningValue(c.v).FieldByName(fieldType.Name)
+	fieldValue := uv.FieldByName(fieldType.Name)
 	if !fieldValue.CanSet() {
 		return newError(fmt.Errorf("Struct field %s is not settable", fieldname), c.ctx.Dup())
 	}
@@ -233,8 +236,10 @@ func (c *copyCreator_Map) Create() (reflect.Value, error) {
 }
 
 func (c *copyCreator_Map) SetField(index reflect.Value, value reflect.Value) error {
+	ut := rprim.UnderliningType(c.t)
+
 	// convert index to the map index type
-	mapindex, err := c.c.RprimConfig.Convert(index, rprim.UnderliningType(c.t).Key())
+	mapindex, err := c.c.RprimConfig.Convert(index, ut.Key())
 	if err != nil {
 		return err
 	}
@@ -244,9 +249,11 @@ func (c *copyCreator_Map) SetField(index reflect.Value, value reflect.Value) err
 		return err
 	}
 
+	uv := rprim.UnderliningValue(c.v)
+
 	// map items are not settable, if set, must be copied
 	currentValue := reflect.Value{}
-	if cur := rprim.UnderliningValue(c.v).MapIndex(mapindex); cur.IsValid() {
+	if cur := uv.MapIndex(mapindex); cur.IsValid() {
 		if (c.c.Flags & XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE) == XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE {
 			currentValue, err = c.c.XCopyToNew(c.ctx, cur, cur.Type())
 			if err != nil {
@@ -258,10 +265,10 @@ func (c *copyCreator_Map) SetField(index reflect.Value, value reflect.Value) err
 	}
 
 	// special case of map[x]interface{} to allow inner maps of the same type as this
-	target_type := rprim.UnderliningType(c.t).Elem()
+	target_type := ut.Elem()
 	if !((c.c.Flags & XCF_DISABLE_MAPOFINTERFACE_TARGET_RECURSION) == XCF_DISABLE_MAPOFINTERFACE_TARGET_RECURSION) {
 		if target_type.Kind() == reflect.Interface && KindHasFields(rprim.UnderliningValueKind(value)) {
-			target_type = rprim.UnderliningType(c.t)
+			target_type = ut
 		}
 	}
 
@@ -270,7 +277,7 @@ func (c *copyCreator_Map) SetField(index reflect.Value, value reflect.Value) err
 		return err
 	}
 
-	rprim.UnderliningValue(c.v).SetMapIndex(mapindex, cv)
+	uv.SetMapIndex(mapindex, cv)
 	return nil
 }
 
@@ -371,23 +378,25 @@ func (c *copyCreator_Slice) SetField(index reflect.Value, value reflect.Value) e
 		return err
 	}
 
+	ut := rprim.UnderliningType(c.t)
+	uv := rprim.UnderliningValue(c.v)
+
 	// Add zero values until the index
-	for int(sliceindex.Int()) >= rprim.UnderliningValue(c.v).Len() {
-		//c.v = reflect.Append(c.v, reflect.Zero(c.t.Elem()))
+	for int(sliceindex.Int()) >= uv.Len() {
 		c.append()
 	}
 
 	currentValue := reflect.Value{}
-	if int(sliceindex.Int()) < rprim.UnderliningValue(c.v).Len() {
-		currentValue = rprim.UnderliningValue(c.v).Index(int(sliceindex.Int()))
+	if int(sliceindex.Int()) < uv.Len() {
+		currentValue = uv.Index(int(sliceindex.Int()))
 	}
 
-	cv, err := c.c.XCopyUsingExistingIfValid(c.ctx, value, rprim.UnderliningType(c.t).Elem(), currentValue)
+	cv, err := c.c.XCopyUsingExistingIfValid(c.ctx, value, ut.Elem(), currentValue)
 	if err != nil {
 		return err
 	}
 
-	rprim.UnderliningValue(c.v).Index(int(sliceindex.Int())).Set(cv)
+	uv.Index(int(sliceindex.Int())).Set(cv)
 	return nil
 }
 
