@@ -205,7 +205,7 @@ func (c *Config) XCopyUsingExistingIfValid(ctx *Context, src reflect.Value, dest
 		return c.copyTo_Struct(ctx, src, destType, currentValue)
 	case reflect.Map:
 		return c.copyTo_Map(ctx, src, destType, currentValue)
-	case reflect.Slice:
+	case reflect.Slice, reflect.Array:
 		return c.copyTo_Slice(ctx, src, destType, currentValue)
 	case reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32,
 		reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,

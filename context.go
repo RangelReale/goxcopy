@@ -39,9 +39,13 @@ func (c *Context) FieldsAsStringSlice() []string {
 func (c *Context) FieldsAsStringSliceAppending(v reflect.Value) []string {
 	var ret []string
 	var dst []reflect.Value
-	copy(dst, c.Fields)
 	if v.IsValid() {
+		for _, cf := range c.Fields {
+			dst = append(dst, cf)
+		}
 		dst = append(dst, v)
+	} else {
+		dst = c.Fields
 	}
 	for _, f := range dst {
 		s, err := rprim.ConvertToString(f)

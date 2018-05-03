@@ -29,7 +29,7 @@ func (c *Config) XCopyGetCreator(ctx *Context, t reflect.Type) (XCopyCreator, er
 		return &copyCreator_Struct{ctx: ctx, c: c, t: t}, nil
 	case reflect.Map:
 		return &copyCreator_Map{ctx: ctx, c: c, t: t}, nil
-	case reflect.Slice:
+	case reflect.Slice, reflect.Array:
 		return &copyCreator_Slice{ctx: ctx, c: c, t: t}, nil
 	case reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32,
 		reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,
@@ -65,7 +65,7 @@ func (c *copyCreator_Struct) SetCurrentValue(current reflect.Value) error {
 		need_duplicate := !overwrite_existing
 
 		if overwrite_existing {
-			if current.Kind() == reflect.Ptr && current.IsNil() {
+			if current.Kind() == reflect.Ptr && rprim.UnderliningValueIsNil(current) {
 				// If is nil pointer, just set it, the value will be set later if the source is not nil
 				c.v = current
 			} else if rprim.UnderliningValue(current).NumField() == 0 || rprim.UnderliningValue(current).Field(0).CanSet() {
@@ -423,8 +423,10 @@ func (c *copyCreator_Slice) ensureValue() error {
 				return err
 			}
 		}
-		if last.IsNil() {
-			last.Set(reflect.MakeSlice(rprim.UnderliningType(c.t), 0, 0))
+		if last.Kind() != reflect.Array {
+			if last.IsNil() {
+				last.Set(reflect.MakeSlice(rprim.UnderliningType(c.t), 0, 0))
+			}
 		}
 		c.isEnsure = true
 	}
