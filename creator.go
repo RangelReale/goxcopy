@@ -180,10 +180,11 @@ func (c *copyCreator_Struct) ensureValueOrZero() {
 //
 
 type copyCreator_Map struct {
-	ctx *Context
-	c   *Config
-	t   reflect.Type
-	v   reflect.Value
+	ctx      *Context
+	c        *Config
+	t        reflect.Type
+	isEnsure bool
+	v        reflect.Value
 }
 
 func (c *copyCreator_Map) Type() reflect.Type {
@@ -237,7 +238,10 @@ func (c *copyCreator_Map) SetField(index reflect.Value, value reflect.Value) err
 		return err
 	}
 
-	c.ensureValue()
+	err = c.ensureValue()
+	if err != nil {
+		return err
+	}
 
 	// map items are not settable, if set, must be copied
 	currentValue := reflect.Value{}
@@ -269,12 +273,34 @@ func (c *copyCreator_Map) SetField(index reflect.Value, value reflect.Value) err
 	return nil
 }
 
-func (c *copyCreator_Map) ensureValue() {
-	if !c.v.IsValid() {
+func (c *copyCreator_Map) ensureValue() error {
+	if !c.isEnsure {
 		var last reflect.Value
-		c.v, last = rprim.NewUnderliningValue(c.t)
-		last.Set(reflect.MakeMap(rprim.UnderliningType(c.t)))
+		if !c.v.IsValid() {
+			// if not valid, create a new instance
+			c.v, last = rprim.NewUnderliningValue(c.t)
+		} else {
+			// else ensure all pointer indirections are not nil
+			var err error
+			last, err = rprim.EnsureUnderliningValue(c.v)
+			if err != nil {
+				return err
+			}
+		}
+		if last.IsNil() {
+			last.Set(reflect.MakeMap(rprim.UnderliningType(c.t)))
+		}
+		c.isEnsure = true
 	}
+	return nil
+
+	/*
+		if !c.v.IsValid() {
+			var last reflect.Value
+			c.v, last = rprim.NewUnderliningValue(c.t)
+			last.Set(reflect.MakeMap(rprim.UnderliningType(c.t)))
+		}
+	*/
 }
 
 func (c *copyCreator_Map) ensureValueOrZero() {
@@ -288,10 +314,11 @@ func (c *copyCreator_Map) ensureValueOrZero() {
 //
 
 type copyCreator_Slice struct {
-	ctx *Context
-	c   *Config
-	t   reflect.Type
-	v   reflect.Value
+	ctx      *Context
+	c        *Config
+	t        reflect.Type
+	isEnsure bool
+	v        reflect.Value
 }
 
 func (c *copyCreator_Slice) Type() reflect.Type {
@@ -333,7 +360,10 @@ func (c *copyCreator_Slice) SetField(index reflect.Value, value reflect.Value) e
 		return err
 	}
 
-	c.ensureValue()
+	err = c.ensureValue()
+	if err != nil {
+		return err
+	}
 
 	// Add zero values until the index
 	for int(sliceindex.Int()) >= rprim.UnderliningValue(c.v).Len() {
@@ -356,21 +386,52 @@ func (c *copyCreator_Slice) SetField(index reflect.Value, value reflect.Value) e
 }
 
 func (c *copyCreator_Slice) append() {
-	if c.v.Kind() == reflect.Slice {
-		c.v = reflect.Append(c.v, reflect.Zero(c.t.Elem()))
-	} else if c.v.Kind() == reflect.Ptr {
-		cur := c.v.Elem()
-		cur = reflect.Append(cur, reflect.Zero(rprim.IndirectType(c.t).Elem()))
-		c.v.Elem().Set(cur)
+	v := rprim.UnderliningValue(c.v)
+	if v.CanSet() {
+		v.Set(reflect.Append(v, reflect.Zero(rprim.UnderliningType(c.t).Elem())))
 	} else {
-		panic("Not possible")
+		panic("Should not happen")
 	}
+
+	/*
+		if c.v.Kind() == reflect.Slice {
+			c.v = reflect.Append(c.v, reflect.Zero(c.t.Elem()))
+		} else if c.v.Kind() == reflect.Ptr {
+			cur := c.v.Elem()
+			cur = reflect.Append(cur, reflect.Zero(rprim.IndirectType(c.t).Elem()))
+			c.v.Elem().Set(cur)
+		} else {
+			panic("Not possible")
+		}
+	*/
 }
 
-func (c *copyCreator_Slice) ensureValue() {
-	if !c.v.IsValid() {
-		c.v = reflect.MakeSlice(c.t, 0, 0)
+func (c *copyCreator_Slice) ensureValue() error {
+	if !c.isEnsure {
+		var last reflect.Value
+		if !c.v.IsValid() {
+			// if not valid, create a new instance
+			c.v, last = rprim.NewUnderliningValue(c.t)
+		} else {
+			// else ensure all pointer indirections are not nil
+			var err error
+			last, err = rprim.EnsureUnderliningValue(c.v)
+			if err != nil {
+				return err
+			}
+		}
+		if last.IsNil() {
+			last.Set(reflect.MakeSlice(rprim.UnderliningType(c.t), 0, 0))
+		}
+		c.isEnsure = true
 	}
+	return nil
+
+	/*
+		if !c.v.IsValid() {
+			c.v = reflect.MakeSlice(c.t, 0, 0)
+		}
+	*/
 }
 
 func (c *copyCreator_Slice) ensureValueOrZero() {

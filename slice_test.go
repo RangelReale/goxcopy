@@ -1,6 +1,7 @@
 package goxcopy
 
 import (
+	"github.com/davecgh/go-spew/spew"
 	"reflect"
 	"testing"
 )
@@ -120,6 +121,30 @@ func TestSliceToMapStringValue(t *testing.T) {
 
 	if "1__string" != sd["0"] ||
 		"777" != sd["1"] {
+		t.Fatal("Values are different")
+	}
+}
+
+func TestSliceUnderlining(t *testing.T) {
+	src := []string{
+		"value1",
+		"value2",
+	}
+	var dst ****[]string
+
+	err := CopyToExisting(src, dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	spew.Dump(dst)
+
+	if dst == nil || *dst == nil || **dst == nil || ***dst == nil || ****dst == nil {
+		t.Fatal("Values are different")
+	}
+
+	xdst := ****dst
+	if len(xdst) != 2 || xdst[0] != "value1" {
 		t.Fatal("Values are different")
 	}
 }
