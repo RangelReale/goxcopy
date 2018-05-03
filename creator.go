@@ -47,8 +47,8 @@ type copyCreator_Struct struct {
 	ctx *Context
 	c   *Config
 	t   reflect.Type
-	it  reflect.Type
-	v   reflect.Value
+	//it  reflect.Type
+	v reflect.Value
 }
 
 func (c *copyCreator_Struct) Type() reflect.Type {
@@ -59,25 +59,36 @@ func (c *copyCreator_Struct) SetCurrentValue(current reflect.Value) error {
 	if current.Type() != c.t {
 		return newError(fmt.Errorf("Destination is not of the same type (%s -> %s)", current.Type().String(), c.t.String()), c.ctx.Dup())
 	}
-	if current.Kind() != reflect.Ptr || !current.IsNil() {
-		forceduplicate := !((c.c.Flags & XCF_OVERWRITE_EXISTING) == XCF_OVERWRITE_EXISTING)
+	if current.IsValid() {
+		// check if must write on the passed value
+		overwrite_existing := (c.c.Flags & XCF_OVERWRITE_EXISTING) == XCF_OVERWRITE_EXISTING
+		need_duplicate := !overwrite_existing
 
-		// Check if the first field is settable
-		if !forceduplicate && (rprim.UnderliningValue(current).NumField() == 0 || rprim.UnderliningValue(current).Field(0).CanSet()) {
-			c.v = current
-		} else {
-			if forceduplicate || (c.c.Flags&XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE) == XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE {
-				// if struct is not settable, must make a copy
+		if overwrite_existing {
+			if current.Kind() == reflect.Ptr && current.IsNil() {
+				// If is nil pointer, just set it, the value will be set later if the source is not nil
+				c.v = current
+			} else if rprim.UnderliningValue(current).NumField() == 0 || rprim.UnderliningValue(current).Field(0).CanSet() {
+				// If the field is settable, set it as the value
+				c.v = current
+			} else {
+				// fields are not settable, duplicate value if allowed
+				need_duplicate = true
+			}
+		}
+
+		if need_duplicate {
+			if !overwrite_existing || (c.c.Flags&XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE) == XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE {
+				// Create a new instance copying the value
 				newValue, err := c.c.XCopyToNew(c.ctx, current, c.t)
 				if err != nil {
 					return err
 				}
 				c.v = newValue
 			} else {
-				return newError(fmt.Errorf("Struct field is not settable"), c.ctx.Dup())
+				return newError(fmt.Errorf("Struct fields are not settable and duplicates are not allowed"), c.ctx.Dup())
 			}
 		}
-		c.it = rprim.UnderliningType(c.t)
 	}
 	return nil
 }
@@ -98,8 +109,8 @@ func (c *copyCreator_Struct) SetField(index reflect.Value, value reflect.Value) 
 	var fieldType reflect.StructField
 	var fieldTypeOk bool
 
-	for fi := 0; fi < c.it.NumField(); fi++ {
-		f := c.it.Field(fi)
+	for fi := 0; fi < rprim.UnderliningType(c.t).NumField(); fi++ {
+		f := rprim.UnderliningType(c.t).Field(fi)
 		fname := f.Name
 
 		tag_fields := c.c.GetStructTagFields(f)
@@ -139,13 +150,13 @@ func (c *copyCreator_Struct) SetField(index reflect.Value, value reflect.Value) 
 }
 
 func (c *copyCreator_Struct) ensureValue() {
+	// if not valid, create a new instance
 	if !c.v.IsValid() {
-		if c.t.Kind() == reflect.Ptr {
-			c.v = reflect.New(c.t.Elem())
-		} else {
-			c.v = reflect.New(c.t).Elem()
-		}
-		c.it = rprim.UnderliningType(c.t)
+		c.v, _ = rprim.NewUnderliningValue(c.t)
+	}
+	// if is nil pointer, create an instance of the struct
+	if c.v.Kind() == reflect.Ptr && c.v.IsNil() {
+		rprim.UnderliningValue(c.v).Set(reflect.New(rprim.UnderliningType(c.t)))
 	}
 }
 

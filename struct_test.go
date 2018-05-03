@@ -66,7 +66,7 @@ func TestStructToStruct(t *testing.T) {
 	}
 }
 
-func TestStructToStructExisting(t *testing.T) {
+func TestStructToStructUsingExisting(t *testing.T) {
 	s := NewST_Source()
 
 	xsd := &ST_Dest{
@@ -109,8 +109,7 @@ func TestStructToStructExistingInplace(t *testing.T) {
 		ExtraValue: "555444",
 	}
 
-	_, err := NewConfig().SetFlags(XCF_OVERWRITE_EXISTING).
-		CopyUsingExisting(s, xsd)
+	err := CopyToExisting(s, xsd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,5 +181,26 @@ func TestStructTag(t *testing.T) {
 
 	if dt.Value1 != "" || dt.New_value1 != "u_value_1" || dt.New_value2 != "u_value_2" {
 		t.Fatal("Value not set as expected")
+	}
+}
+
+func TestStructOverwriteNilPointer(t *testing.T) {
+	type sx struct {
+		Value1 string
+		Value2 *sx
+	}
+
+	src := &sx{
+		Value1: "x_value1",
+	}
+	dst := &sx{}
+
+	err := CopyToExisting(src, dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if src.Value1 != dst.Value1 || dst.Value2 != nil {
+		t.Fatal("Structs have different values")
 	}
 }

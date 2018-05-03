@@ -231,43 +231,48 @@ func (c *Config) copyTo_Struct(ctx *Context, src reflect.Value, destType reflect
 		}
 	}
 
-	for i := 0; i < srcValue.NumField(); i++ {
-		srcField := srcValue.Field(i)
-		srcFieldType := srcValue.Type().Field(i)
+	if srcValue.Kind() != reflect.Ptr || !srcValue.IsNil() {
+		for i := 0; i < srcValue.NumField(); i++ {
+			srcField := srcValue.Field(i)
+			srcFieldType := srcValue.Type().Field(i)
 
-		if srcFieldType.PkgPath != "" {
-			// skip unexported fields
-			continue
-		}
-
-		targetFieldName := srcFieldType.Name
-
-		tag_fields := c.GetStructTagFields(srcFieldType)
-		if len(tag_fields) > 0 {
-			if tag_fields[0] == "-" {
-				targetFieldName = "" // skip
-			} else {
-				targetFieldName = tag_fields[0]
+			if srcFieldType.PkgPath != "" {
+				// skip unexported fields
+				continue
 			}
-		}
 
-		if targetFieldName != "" {
-			if fieldmap := c.GetFieldMap(ctx.FieldsAsStringAppending(reflect.ValueOf(targetFieldName))); fieldmap != nil {
-				if fieldmap.Fieldname != nil {
-					targetFieldName = *fieldmap.Fieldname
+			targetFieldName := srcFieldType.Name
+
+			// check for the struct tag and change the field name if requested
+			tag_fields := c.GetStructTagFields(srcFieldType)
+			if len(tag_fields) > 0 {
+				if tag_fields[0] == "-" {
+					targetFieldName = "" // skip
+				} else {
+					targetFieldName = tag_fields[0]
 				}
 			}
-		}
 
-		if targetFieldName != "" {
-			fv := reflect.ValueOf(targetFieldName)
+			if targetFieldName != "" {
+				// check the field map for this field
+				if fieldmap := c.GetFieldMap(ctx.FieldsAsStringAppending(reflect.ValueOf(targetFieldName))); fieldmap != nil {
+					if fieldmap.Fieldname != nil {
+						targetFieldName = *fieldmap.Fieldname
+					}
+				}
+			}
 
-			ctx.PushField(fv)
-			err := destCreator.SetField(fv, srcField)
-			ctx.PopField()
+			if targetFieldName != "" {
+				// set the field on the creator
+				fv := reflect.ValueOf(targetFieldName)
 
-			if err != nil {
-				return reflect.Value{}, err
+				ctx.PushField(fv)
+				err := destCreator.SetField(fv, srcField)
+				ctx.PopField()
+
+				if err != nil {
+					return reflect.Value{}, err
+				}
 			}
 		}
 	}
@@ -291,22 +296,26 @@ func (c *Config) copyTo_Map(ctx *Context, src reflect.Value, destType reflect.Ty
 		}
 	}
 
-	for _, k := range srcValue.MapKeys() {
-		srcField := srcValue.MapIndex(k)
+	if srcValue.Kind() != reflect.Ptr || !srcValue.IsNil() {
+		for _, k := range srcValue.MapKeys() {
+			srcField := srcValue.MapIndex(k)
 
-		kindex := k
-		if fieldmap := c.GetFieldMap(ctx.FieldsAsStringAppending(kindex)); fieldmap != nil {
-			if fieldmap.Fieldname != nil {
-				kindex = reflect.ValueOf(*fieldmap.Fieldname)
+			kindex := k
+			// check the field map for this field
+			if fieldmap := c.GetFieldMap(ctx.FieldsAsStringAppending(kindex)); fieldmap != nil {
+				if fieldmap.Fieldname != nil {
+					kindex = reflect.ValueOf(*fieldmap.Fieldname)
+				}
 			}
-		}
 
-		ctx.PushField(kindex)
-		err := destCreator.SetField(kindex, srcField)
-		ctx.PopField()
+			// set the value on the creator
+			ctx.PushField(kindex)
+			err := destCreator.SetField(kindex, srcField)
+			ctx.PopField()
 
-		if err != nil {
-			return reflect.Value{}, err
+			if err != nil {
+				return reflect.Value{}, err
+			}
 		}
 	}
 
@@ -329,24 +338,28 @@ func (c *Config) copyTo_Slice(ctx *Context, src reflect.Value, destType reflect.
 		}
 	}
 
-	for i := 0; i < srcValue.Len(); i++ {
-		srcField := srcValue.Index(i)
+	if srcValue.Kind() != reflect.Ptr || !srcValue.IsNil() {
+		for i := 0; i < srcValue.Len(); i++ {
+			srcField := srcValue.Index(i)
 
-		fv := reflect.ValueOf(i)
+			fv := reflect.ValueOf(i)
 
-		fvindex := fv
-		if fieldmap := c.GetFieldMap(ctx.FieldsAsStringAppending(fv)); fieldmap != nil {
-			if fieldmap.Fieldname != nil {
-				fvindex = reflect.ValueOf(*fieldmap.Fieldname)
+			fvindex := fv
+			// check the field map for this field
+			if fieldmap := c.GetFieldMap(ctx.FieldsAsStringAppending(fv)); fieldmap != nil {
+				if fieldmap.Fieldname != nil {
+					fvindex = reflect.ValueOf(*fieldmap.Fieldname)
+				}
 			}
-		}
 
-		ctx.PushField(fvindex)
-		err := destCreator.SetField(fvindex, srcField)
-		ctx.PopField()
+			// set the value on the creator
+			ctx.PushField(fvindex)
+			err := destCreator.SetField(fvindex, srcField)
+			ctx.PopField()
 
-		if err != nil {
-			return reflect.Value{}, err
+			if err != nil {
+				return reflect.Value{}, err
+			}
 		}
 	}
 
@@ -367,6 +380,7 @@ func (c *Config) copyTo_Primitive(ctx *Context, src reflect.Value, destType refl
 		}
 	}
 
+	// set the value on the creator. As primitives don't have fields, the index is passed as an INVALID reflect.Value.
 	err = destCreator.SetField(reflect.Value{}, src)
 	if err != nil {
 		return reflect.Value{}, err
