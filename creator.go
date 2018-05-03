@@ -305,7 +305,7 @@ func (c *copyCreator_Map) ensureValue() error {
 
 func (c *copyCreator_Map) ensureValueOrZero() {
 	if !c.v.IsValid() {
-		c.v = reflect.Zero(c.t)
+		c.v = reflect.New(c.t).Elem()
 	}
 }
 
@@ -433,7 +433,7 @@ func (c *copyCreator_Slice) ensureValue() error {
 
 func (c *copyCreator_Slice) ensureValueOrZero() {
 	if !c.v.IsValid() {
-		c.v = reflect.Zero(c.t)
+		c.v = reflect.New(c.t).Elem()
 	}
 }
 
@@ -445,8 +445,9 @@ type copyCreator_Primitive struct {
 	ctx *Context
 	c   *Config
 	t   reflect.Type
-	it  reflect.Type
-	v   reflect.Value
+	//it  reflect.Type
+	isEnsure bool
+	v        reflect.Value
 }
 
 func (c *copyCreator_Primitive) Type() reflect.Type {
@@ -457,22 +458,35 @@ func (c *copyCreator_Primitive) SetCurrentValue(current reflect.Value) error {
 	if current.Type() != c.t {
 		return newError(fmt.Errorf("Destination is not of the same type (%s -> %s)", current.Type().String(), c.t.String()), c.ctx.Dup())
 	}
-	forceduplicate := !((c.c.Flags & XCF_OVERWRITE_EXISTING) == XCF_OVERWRITE_EXISTING)
-	if !forceduplicate {
-		c.v = current
-		c.it = rprim.IndirectType(c.t)
-	} else {
-		if current.Kind() != reflect.Ptr || !current.IsNil() {
-			// duplicate the primitive
-			newValue, err := c.c.XCopyToNew(c.ctx, current, c.t)
-			if err != nil {
-				return err
+
+	if current.IsValid() {
+		// check if must write on the passed value
+		overwrite_existing := (c.c.Flags & XCF_OVERWRITE_EXISTING) == XCF_OVERWRITE_EXISTING
+		need_duplicate := !overwrite_existing
+
+		if overwrite_existing {
+			if current.Kind() == reflect.Ptr || current.CanSet() {
+				// If is nil pointer, just set it, the value will be set later if the source is not nil
+				c.v = current
+			} else {
+				// fields are not settable, duplicate value if allowed
+				need_duplicate = true
 			}
-			c.v = newValue
-			c.it = rprim.IndirectType(c.t)
+		}
+
+		if need_duplicate {
+			if !overwrite_existing || (c.c.Flags&XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE) == XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE {
+				// Create a new instance copying the value
+				newValue, err := c.c.XCopyToNew(c.ctx, current, c.t)
+				if err != nil {
+					return err
+				}
+				c.v = newValue
+			} else {
+				return newError(fmt.Errorf("Slice is not settable and duplicates are not allowed"), c.ctx.Dup())
+			}
 		}
 	}
-	c.it = rprim.IndirectType(c.t)
 	return nil
 }
 
@@ -486,8 +500,11 @@ func (c *copyCreator_Primitive) SetField(index reflect.Value, value reflect.Valu
 		return newError(fmt.Errorf("Cannot set a primitive with an index"), c.ctx.Dup())
 	}
 
-	c.ensureValue()
-	var err error
+	err := c.ensureValue()
+	if err != nil {
+		return err
+	}
+
 	val, err := c.c.RprimConfig.Convert(value, c.t)
 	if err != nil {
 		return err
@@ -511,11 +528,21 @@ func (c *copyCreator_Primitive) SetField(index reflect.Value, value reflect.Valu
 	return nil
 }
 
-func (c *copyCreator_Primitive) ensureValue() {
-	if !c.v.IsValid() {
-		c.v = reflect.New(c.t).Elem()
-		c.it = rprim.IndirectType(c.t)
+func (c *copyCreator_Primitive) ensureValue() error {
+	if !c.isEnsure {
+		if !c.v.IsValid() {
+			// if not valid, create a new instance
+			c.v, _ = rprim.NewUnderliningValue(c.t)
+		} else {
+			// else ensure all pointer indirections are not nil
+			_, err := rprim.EnsureUnderliningValue(c.v)
+			if err != nil {
+				return err
+			}
+		}
+		c.isEnsure = true
 	}
+	return nil
 }
 
 func (c *copyCreator_Primitive) ensureValueOrZero() {
