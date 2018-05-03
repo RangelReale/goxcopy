@@ -26,3 +26,12 @@ func ReverseStrSlice(str []string) []string {
 	}
 	return ret
 }
+
+func KindHasFields(k reflect.Kind) bool {
+	switch k {
+	case reflect.Struct, reflect.Map, reflect.Slice:
+		return true
+	default:
+		return false
+	}
+}

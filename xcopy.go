@@ -66,6 +66,9 @@ const (
 	XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE = 2
 	// Return error if source struct founds no corresponding field on the target
 	XCF_ERROR_IF_STRUCT_FIELD_MISSING = 4
+	// Disable special handling of map[XXX]interface{} target, which can create a new inner map of the same type
+	// if the source have fields.
+	XCF_DISABLE_MAPOFINTERFACE_TARGET_RECURSION = 8
 )
 
 //

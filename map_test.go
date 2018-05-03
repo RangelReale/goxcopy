@@ -70,7 +70,7 @@ func TestMapToMapExistingInplace(t *testing.T) {
 	}
 
 	_, err := NewConfig().SetFlags(XCF_OVERWRITE_EXISTING).
-		CopyUsingExisting(s, xsd)
+		CopyUsingExisting(s, &xsd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,5 +169,72 @@ func TestMapToSliceInsideStruct(t *testing.T) {
 
 	if ret.Value1 != "first value" && len(ret.Value2) != 2 && ret.Value2[0] != "one" && ret.Value2[1] != "two" {
 		t.Fatal("Values are different")
+	}
+}
+
+func TestMapToSliceInsideStructWithFieldMap(t *testing.T) {
+	type sx struct {
+		Value1 string
+		Value2 []string
+	}
+
+	vsx := map[string]interface{}{
+		"Value1":  "first value",
+		"XValue2": []string{"one", "two"},
+	}
+
+	ret := &sx{}
+
+	err := NewConfig().SetFieldMap(map[string]*FieldMap{
+		"XValue2": NewFieldMap().SetFieldname("Value2"),
+	}).CopyToExisting(vsx, ret)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if ret.Value1 != "first value" && len(ret.Value2) != 2 && ret.Value2[0] != "one" && ret.Value2[1] != "two" {
+		t.Fatal("Values are different")
+	}
+
+}
+
+func TestMapOfInterface(t *testing.T) {
+	type s2 struct {
+		Value1 string
+		Value2 int
+	}
+	type s1 struct {
+		AValue string
+		SValue *s2
+	}
+
+	vsx := &s1{
+		AValue: "is_avalue",
+		SValue: &s2{
+			Value1: "is_value1",
+			Value2: 133,
+		},
+	}
+
+	var ret map[string]interface{}
+	err := CopyToExisting(vsx, &ret)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(ret) != 2 {
+		t.Fatal("Values are different")
+	}
+
+	if im, isim := ret["SValue"].(map[string]interface{}); isim {
+		if xim, isxim := im["Value2"].(int); isxim {
+			if xim != 133 {
+				t.Fatalf("Inner map value should be 133, is %d", xim)
+			}
+		} else {
+			t.Fatal("Inner map should have a Value2 item")
+		}
+	} else {
+		t.Fatal("Inner map should be map[string]interface{}")
 	}
 }

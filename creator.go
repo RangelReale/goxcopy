@@ -174,17 +174,32 @@ func (c *copyCreator_Map) SetCurrentValue(current reflect.Value) error {
 	if current.Type() != c.t {
 		return newError(fmt.Errorf("Destination is not of the same type (%s -> %s)", current.Type().String(), c.t.String()), c.ctx.Dup())
 	}
-	if !current.IsNil() {
-		forceduplicate := !((c.c.Flags & XCF_OVERWRITE_EXISTING) == XCF_OVERWRITE_EXISTING)
-		if !forceduplicate {
-			c.v = current
-		} else {
-			// duplicate the map
-			newValue, err := c.c.XCopyToNew(c.ctx, current, c.t)
-			if err != nil {
-				return err
+
+	forceduplicate := !((c.c.Flags & XCF_OVERWRITE_EXISTING) == XCF_OVERWRITE_EXISTING)
+	if current.IsValid() {
+		if !current.IsNil() {
+			if !forceduplicate {
+				if current.Kind() != reflect.Ptr {
+					return newError(errors.New("Map is not settable"), c.ctx.Dup())
+				}
+				c.v = current
+				if c.v.Elem().IsNil() {
+					c.v.Elem().Set(reflect.MakeMap(c.t.Elem()))
+				}
+			} else {
+				// duplicate the map
+				newValue, err := c.c.XCopyToNew(c.ctx, current, c.t)
+				if err != nil {
+					return err
+				}
+				c.v = newValue
 			}
-			c.v = newValue
+		} else {
+			if !forceduplicate {
+				if current.Kind() != reflect.Ptr {
+					return newError(errors.New("Map is not settable"), c.ctx.Dup())
+				}
+			}
 		}
 	}
 	return nil
@@ -206,7 +221,7 @@ func (c *copyCreator_Map) SetField(index reflect.Value, value reflect.Value) err
 
 	// map items are not settable, if set, must be copied
 	currentValue := reflect.Value{}
-	if cur := c.v.MapIndex(mapindex); cur.IsValid() {
+	if cur := rprim.UnderliningValue(c.v).MapIndex(mapindex); cur.IsValid() {
 		if (c.c.Flags & XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE) == XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE {
 			currentValue, err = c.c.XCopyToNew(c.ctx, cur, cur.Type())
 			if err != nil {
@@ -217,18 +232,28 @@ func (c *copyCreator_Map) SetField(index reflect.Value, value reflect.Value) err
 		}
 	}
 
-	cv, err := c.c.XCopyUsingExistingIfValid(c.ctx, value, c.t.Elem(), currentValue)
+	// special case of map[x]interface{} to allow inner maps of the same type as this
+	target_type := rprim.UnderliningType(c.t).Elem()
+	if !((c.c.Flags & XCF_DISABLE_MAPOFINTERFACE_TARGET_RECURSION) == XCF_DISABLE_MAPOFINTERFACE_TARGET_RECURSION) {
+		if target_type.Kind() == reflect.Interface && KindHasFields(rprim.UnderliningValueKind(value)) {
+			target_type = rprim.UnderliningType(c.t)
+		}
+	}
+
+	cv, err := c.c.XCopyUsingExistingIfValid(c.ctx, value, target_type, currentValue)
 	if err != nil {
 		return err
 	}
 
-	c.v.SetMapIndex(mapindex, cv)
+	rprim.UnderliningValue(c.v).SetMapIndex(mapindex, cv)
 	return nil
 }
 
 func (c *copyCreator_Map) ensureValue() {
 	if !c.v.IsValid() {
-		c.v = reflect.MakeMap(c.t)
+		var last reflect.Value
+		c.v, last = rprim.NewUnderliningValue(c.t)
+		last.Set(reflect.MakeMap(rprim.UnderliningType(c.t)))
 	}
 }
 
