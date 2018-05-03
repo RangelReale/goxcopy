@@ -44,11 +44,11 @@ func (c *Config) XCopyGetCreator(ctx *Context, t reflect.Type) (XCopyCreator, er
 //
 
 type copyCreator_Struct struct {
-	ctx *Context
-	c   *Config
-	t   reflect.Type
-	//it  reflect.Type
-	v reflect.Value
+	ctx      *Context
+	c        *Config
+	t        reflect.Type
+	isEnsure bool
+	v        reflect.Value
 }
 
 func (c *copyCreator_Struct) Type() reflect.Type {
@@ -104,7 +104,10 @@ func (c *copyCreator_Struct) SetField(index reflect.Value, value reflect.Value) 
 		return err
 	}
 
-	c.ensureValue()
+	err = c.ensureValue()
+	if err != nil {
+		return err
+	}
 
 	var fieldType reflect.StructField
 	var fieldTypeOk bool
@@ -149,15 +152,21 @@ func (c *copyCreator_Struct) SetField(index reflect.Value, value reflect.Value) 
 	return nil
 }
 
-func (c *copyCreator_Struct) ensureValue() {
-	// if not valid, create a new instance
-	if !c.v.IsValid() {
-		c.v, _ = rprim.NewUnderliningValue(c.t)
+func (c *copyCreator_Struct) ensureValue() error {
+	if !c.isEnsure {
+		if !c.v.IsValid() {
+			// if not valid, create a new instance
+			c.v, _ = rprim.NewUnderliningValue(c.t)
+		} else {
+			// else ensure all pointer indirections are not nil
+			_, err := rprim.EnsureUnderliningValue(c.v)
+			if err != nil {
+				return err
+			}
+		}
+		c.isEnsure = true
 	}
-	// if is nil pointer, create an instance of the struct
-	if c.v.Kind() == reflect.Ptr && c.v.IsNil() {
-		rprim.UnderliningValue(c.v).Set(reflect.New(rprim.UnderliningType(c.t)))
-	}
+	return nil
 }
 
 func (c *copyCreator_Struct) ensureValueOrZero() {

@@ -204,3 +204,36 @@ func TestStructOverwriteNilPointer(t *testing.T) {
 		t.Fatal("Structs have different values")
 	}
 }
+
+func TestStructOverwritePointerIndirection(t *testing.T) {
+	type s struct {
+		SValue1 string
+	}
+
+	type sx struct {
+		Value1 string
+		Value2 *s
+	}
+
+	type sy struct {
+		Value1 string
+		Value2 **s
+	}
+
+	src := &sx{
+		Value1: "x_value1",
+		Value2: &s{
+			SValue1: "s_value",
+		},
+	}
+	dst := &sy{}
+
+	err := CopyToExisting(src, dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if src.Value1 != dst.Value1 || dst.Value2 == nil || src.Value2.SValue1 != (*dst.Value2).SValue1 {
+		t.Fatal("Structs have different values")
+	}
+}
