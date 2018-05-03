@@ -202,15 +202,15 @@ func (c *Config) XCopyUsingExistingIfValid(ctx *Context, src reflect.Value, dest
 
 	switch skind {
 	case reflect.Struct:
-		return c.copyToNew_Struct(ctx, src, destType, currentValue)
+		return c.copyTo_Struct(ctx, src, destType, currentValue)
 	case reflect.Map:
-		return c.copyToNew_Map(ctx, src, destType, currentValue)
+		return c.copyTo_Map(ctx, src, destType, currentValue)
 	case reflect.Slice:
-		return c.copyToNew_Slice(ctx, src, destType, currentValue)
+		return c.copyTo_Slice(ctx, src, destType, currentValue)
 	case reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32,
 		reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,
 		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128, reflect.String, reflect.Interface:
-		return c.copyToNew_Primitive(ctx, src, destType, currentValue)
+		return c.copyTo_Primitive(ctx, src, destType, currentValue)
 	}
 	return reflect.Value{}, newError(fmt.Errorf("Kind not supported: %s", skind.String()), ctx.Dup())
 }
@@ -218,7 +218,7 @@ func (c *Config) XCopyUsingExistingIfValid(ctx *Context, src reflect.Value, dest
 //
 // Struct copy source
 //
-func (c *Config) copyToNew_Struct(ctx *Context, src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
+func (c *Config) copyTo_Struct(ctx *Context, src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
 	srcValue := rprim.UnderliningValue(src)
 
 	destCreator, err := c.XCopyGetCreator(ctx, destType)
@@ -278,7 +278,7 @@ func (c *Config) copyToNew_Struct(ctx *Context, src reflect.Value, destType refl
 //
 // Map copy source
 //
-func (c *Config) copyToNew_Map(ctx *Context, src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
+func (c *Config) copyTo_Map(ctx *Context, src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
 	srcValue := rprim.UnderliningValue(src)
 
 	destCreator, err := c.XCopyGetCreator(ctx, destType)
@@ -316,7 +316,7 @@ func (c *Config) copyToNew_Map(ctx *Context, src reflect.Value, destType reflect
 //
 // Slice copy source
 //
-func (c *Config) copyToNew_Slice(ctx *Context, src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
+func (c *Config) copyTo_Slice(ctx *Context, src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
 	srcValue := rprim.UnderliningValue(src)
 
 	destCreator, err := c.XCopyGetCreator(ctx, destType)
@@ -356,7 +356,7 @@ func (c *Config) copyToNew_Slice(ctx *Context, src reflect.Value, destType refle
 //
 // Primitive copy source
 //
-func (c *Config) copyToNew_Primitive(ctx *Context, src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
+func (c *Config) copyTo_Primitive(ctx *Context, src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
 	destCreator, err := c.XCopyGetCreator(ctx, destType)
 	if err != nil {
 		return reflect.Value{}, err
