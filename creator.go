@@ -294,14 +294,6 @@ func (c *copyCreator_Map) ensureValue() error {
 		c.isEnsure = true
 	}
 	return nil
-
-	/*
-		if !c.v.IsValid() {
-			var last reflect.Value
-			c.v, last = rprim.NewUnderliningValue(c.t)
-			last.Set(reflect.MakeMap(rprim.UnderliningType(c.t)))
-		}
-	*/
 }
 
 func (c *copyCreator_Map) ensureValueOrZero() {
@@ -406,18 +398,6 @@ func (c *copyCreator_Slice) append() {
 	} else {
 		panic("Should not happen")
 	}
-
-	/*
-		if c.v.Kind() == reflect.Slice {
-			c.v = reflect.Append(c.v, reflect.Zero(c.t.Elem()))
-		} else if c.v.Kind() == reflect.Ptr {
-			cur := c.v.Elem()
-			cur = reflect.Append(cur, reflect.Zero(rprim.IndirectType(c.t).Elem()))
-			c.v.Elem().Set(cur)
-		} else {
-			panic("Not possible")
-		}
-	*/
 }
 
 func (c *copyCreator_Slice) ensureValue() error {
@@ -440,12 +420,6 @@ func (c *copyCreator_Slice) ensureValue() error {
 		c.isEnsure = true
 	}
 	return nil
-
-	/*
-		if !c.v.IsValid() {
-			c.v = reflect.MakeSlice(c.t, 0, 0)
-		}
-	*/
 }
 
 func (c *copyCreator_Slice) ensureValueOrZero() {
