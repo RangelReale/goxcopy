@@ -18,6 +18,8 @@ type XCopyCreator interface {
 	SetCurrentValue(current reflect.Value) error
 	// Sets a field value.
 	SetField(index reflect.Value, value reflect.Value) error
+	// Try to fast-copy the source value, return true if successful
+	TryFastCopy(value reflect.Value) bool
 }
 
 // Gets a creator for a type.
@@ -53,6 +55,10 @@ type copyCreator_Struct struct {
 
 func (c *copyCreator_Struct) Type() reflect.Type {
 	return c.t
+}
+
+func (c *copyCreator_Struct) TryFastCopy(value reflect.Value) bool {
+	return false
 }
 
 func (c *copyCreator_Struct) SetCurrentValue(current reflect.Value) error {
@@ -194,6 +200,10 @@ func (c *copyCreator_Map) Type() reflect.Type {
 	return c.t
 }
 
+func (c *copyCreator_Map) TryFastCopy(value reflect.Value) bool {
+	return false
+}
+
 func (c *copyCreator_Map) SetCurrentValue(current reflect.Value) error {
 	if current.Type() != c.t {
 		return newError(fmt.Errorf("Destination is not of the same type (%s -> %s)", current.Type().String(), c.t.String()), c.ctx.Dup())
@@ -325,6 +335,27 @@ func (c *copyCreator_Slice) Type() reflect.Type {
 	return c.t
 }
 
+func (c *copyCreator_Slice) TryFastCopy(value reflect.Value) bool {
+	ct := rprim.UnderliningType(c.t)
+	vt := rprim.UnderliningType(value.Type())
+
+	if ct.Kind() == reflect.Array && vt.Kind() == reflect.Array &&
+		ct.Len() == vt.Len() &&
+		ct.Elem() == vt.Elem() &&
+		rprim.KindIsSimpleValue(ct.Elem().Kind()) {
+		// if array of simple values, copy directly
+		err := c.ensureValue()
+		if err != nil {
+			return false
+		}
+
+		reflect.Copy(rprim.UnderliningValue(c.v), rprim.UnderliningValue(value))
+		return true
+	}
+
+	return false
+}
+
 func (c *copyCreator_Slice) SetCurrentValue(current reflect.Value) error {
 	if current.Type() != c.t {
 		return newError(fmt.Errorf("Destination is not of the same type (%s -> %s)", current.Type().String(), c.t.String()), c.ctx.Dup())
@@ -454,6 +485,10 @@ type copyCreator_Primitive struct {
 
 func (c *copyCreator_Primitive) Type() reflect.Type {
 	return c.t
+}
+
+func (c *copyCreator_Primitive) TryFastCopy(value reflect.Value) bool {
+	return false
 }
 
 func (c *copyCreator_Primitive) SetCurrentValue(current reflect.Value) error {
