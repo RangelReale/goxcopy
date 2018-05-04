@@ -261,17 +261,10 @@ func (c *copyCreator_Map) SetField(index reflect.Value, value reflect.Value) err
 
 	uv := rprim.UnderliningValue(c.v)
 
-	// map items are not settable, if set, must be copied
+	// if index exists, use it
 	currentValue := reflect.Value{}
 	if cur := uv.MapIndex(mapindex); cur.IsValid() {
-		if (c.c.Flags & XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE) == XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE {
-			currentValue, err = c.c.XCopyToNew(c.ctx, cur, cur.Type())
-			if err != nil {
-				return err
-			}
-		} else {
-			return newError(errors.New("Map item is not settable, cannot set existing item"), c.ctx.Dup())
-		}
+		currentValue = cur
 	}
 
 	// special case of map[x]interface{} to allow inner maps of the same type as this
@@ -518,7 +511,7 @@ func (c *copyCreator_Primitive) SetCurrentValue(current reflect.Value) error {
 		}
 
 		if need_duplicate {
-			if !overwrite_existing || (c.c.Flags&XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE) == XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE {
+			if !overwrite_existing || !((c.c.Flags & XCF_DENY_DUPLICATING_PRIMITIVE_IF_NOT_SETTABLE) == XCF_DENY_DUPLICATING_PRIMITIVE_IF_NOT_SETTABLE) {
 				// Create a new instance copying the value
 				newValue, err := c.c.XCopyToNew(c.ctx, current, c.t)
 				if err != nil {
@@ -526,7 +519,7 @@ func (c *copyCreator_Primitive) SetCurrentValue(current reflect.Value) error {
 				}
 				c.v = newValue
 			} else {
-				return newError(fmt.Errorf("Slice is not settable and duplicates are not allowed"), c.ctx.Dup())
+				return newError(fmt.Errorf("Primitive is not settable and duplicates are not allowed"), c.ctx.Dup())
 			}
 		}
 	}

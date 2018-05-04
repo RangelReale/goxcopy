@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"errors"
 	"github.com/RangelReale/rprim"
 )
 
@@ -37,6 +38,12 @@ func CopyToExisting(src interface{}, currentValue interface{}) error {
 	return NewConfig().CopyToExisting(src, currentValue)
 }
 
+// Merges all source variables to a new instance of the passed type.
+// The src variables are never changed in any circunstance.
+func MergeToNew(destType reflect.Type, src ...interface{}) (interface{}, error) {
+	return NewConfig().MergeToNew(destType, src...)
+}
+
 // Copy a source variable to a new instance of the passed type.
 // The src variable is never changed in any circunstance.
 func XCopyToNew(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
@@ -59,16 +66,24 @@ func XCopyToExisting(src reflect.Value, currentValue reflect.Value) error {
 	return NewConfig().XCopyToExisting(NewContext(), src, currentValue)
 }
 
+// Merges all source variables to a new instance of the passed type.
+// The src variables are never changed in any circunstance.
+func XMergeToNew(destType reflect.Type, src ...reflect.Value) (reflect.Value, error) {
+	return NewConfig().XMergeToNew(NewContext(), destType, src...)
+}
+
 const (
 	// Whether to overwrite existing items instead of returning a copy
 	XCF_OVERWRITE_EXISTING = 1
-	// Whether to allow creating a new item from a copy if the item is not assignable (only if using existing)
+	// Whether to allow creating a new non-primitive item from a copy if the item is not assignable (only if using existing)
 	XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE = 2
+	// Whether to deny creating a new primitive item from a copy if the item is not assignable (only if using existing)
+	XCF_DENY_DUPLICATING_PRIMITIVE_IF_NOT_SETTABLE = 4
 	// Return error if source struct founds no corresponding field on the target
-	XCF_ERROR_IF_STRUCT_FIELD_MISSING = 4
+	XCF_ERROR_IF_STRUCT_FIELD_MISSING = 8
 	// Disable special handling of map[XXX]interface{} target, which can create a new inner map of the same type
 	// if the source have fields.
-	XCF_DISABLE_MAPOFINTERFACE_TARGET_RECURSION = 8
+	XCF_DISABLE_MAPOFINTERFACE_TARGET_RECURSION = 16
 )
 
 //
@@ -169,8 +184,22 @@ func (c *Config) CopyUsingExisting(src interface{}, currentValue interface{}) (i
 // This is an alias for "CopyToExisting"
 // The src variable is never changed in any circunstance.
 func (c *Config) CopyToExisting(src interface{}, currentValue interface{}) error {
-	_, err := c.Dup().AddFlags(XCF_OVERWRITE_EXISTING).XCopyUsingExisting(NewContext(), reflect.ValueOf(src), reflect.ValueOf(currentValue))
-	return err
+	return c.XCopyToExisting(NewContext(), reflect.ValueOf(src), reflect.ValueOf(currentValue))
+}
+
+// Merges all source variables to a new instance of the passed type.
+// The src variables are never changed in any circunstance.
+func (c *Config) MergeToNew(destType reflect.Type, src ...interface{}) (interface{}, error) {
+	var rsrc []reflect.Value
+	for _, isrc := range src {
+		rsrc = append(rsrc, reflect.ValueOf(isrc))
+	}
+
+	ret, err := c.XMergeToNew(NewContext(), destType, rsrc...)
+	if err != nil {
+		return nil, err
+	}
+	return ret.Interface(), nil
 }
 
 // Copy a source variable to a new instance of the passed type.
@@ -194,6 +223,34 @@ func (c *Config) XCopyUsingExisting(ctx *Context, src reflect.Value, currentValu
 func (c *Config) XCopyToExisting(ctx *Context, src reflect.Value, currentValue reflect.Value) error {
 	_, err := c.Dup().AddFlags(XCF_OVERWRITE_EXISTING).XCopyUsingExistingIfValid(ctx, src, reflect.TypeOf(currentValue.Interface()), currentValue)
 	return err
+}
+
+// Merges all source variables to a new instance of the passed type.
+// The src variables are never changed in any circunstance.
+func (c *Config) XMergeToNew(ctx *Context, destType reflect.Type, src ...reflect.Value) (reflect.Value, error) {
+	if len(src) == 0 {
+		return reflect.Value{}, newError(errors.New("At least one source is needed for merge"), ctx.Dup())
+	}
+	ret := reflect.Value{}
+	var err error
+	for _, isrc := range src {
+		if !ret.IsValid() {
+			ret, err = c.XCopyToNew(ctx, isrc, destType)
+			if err != nil {
+				return reflect.Value{}, err
+			}
+			if !ret.CanAddr() {
+				return reflect.Value{}, newError(errors.New("Destination value is not addressable, cannot continue merge"), ctx.Dup())
+			}
+			ret = ret.Addr()
+		} else {
+			err = c.XCopyToExisting(ctx, isrc, ret)
+			if err != nil {
+				return reflect.Value{}, err
+			}
+		}
+	}
+	return ret.Elem(), nil
 }
 
 // The underling function that does the other functions work.
