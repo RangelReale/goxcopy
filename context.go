@@ -1,7 +1,6 @@
 package goxcopy
 
 import (
-	"github.com/RangelReale/rprim"
 	"reflect"
 	"strings"
 )
@@ -48,12 +47,7 @@ func (c *Context) FieldsAsStringSliceAppending(v reflect.Value) []string {
 		dst = c.Fields
 	}
 	for _, f := range dst {
-		s, err := rprim.ConvertToString(f)
-		if err != nil {
-			ret = append(ret, "<unknown>")
-		} else {
-			ret = append(ret, s)
-		}
+		ret = append(ret, FieldnameToString(f))
 	}
 	return ReverseStrSlice(ret)
 }

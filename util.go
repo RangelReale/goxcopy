@@ -1,6 +1,7 @@
 package goxcopy
 
 import (
+	"github.com/RangelReale/rprim"
 	"reflect"
 	"strings"
 )
@@ -33,5 +34,14 @@ func KindHasFields(k reflect.Kind) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func FieldnameToString(fieldname reflect.Value) string {
+	s, err := rprim.ConvertToString(fieldname)
+	if err != nil {
+		return "unknown>"
+	} else {
+		return s
 	}
 }

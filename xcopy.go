@@ -117,7 +117,10 @@ func (c *Config) MergeToNew(destType reflect.Type, src ...interface{}) (interfac
 // Copy a source variable to a new instance of the passed type.
 // The src variable is never changed in any circunstance.
 func (c *Config) XCopyToNew(ctx *Context, src reflect.Value, destType reflect.Type) (reflect.Value, error) {
-	return c.XCopyUsingExistingIfValid(ctx, src, destType, reflect.Value{})
+	c.callbackBeginNew(ctx, src, destType) // callback
+	ret, err := c.internalXCopyUsingExistingIfValid(ctx, src, destType, reflect.Value{})
+	c.callbackEndNew(ctx, src, destType) // callback
+	return ret, err
 }
 
 // Copy a source variable to a new instance of the type of the passed value.
@@ -125,7 +128,7 @@ func (c *Config) XCopyToNew(ctx *Context, src reflect.Value, destType reflect.Ty
 // changed in any way.
 // The src and currentValue variable are never changed in any circunstance.
 func (c *Config) XCopyUsingExisting(ctx *Context, src reflect.Value, currentValue reflect.Value) (reflect.Value, error) {
-	return c.XCopyUsingExistingIfValid(ctx, src, reflect.TypeOf(currentValue.Interface()), currentValue)
+	return c.internalXCopyUsingExistingIfValid(ctx, src, reflect.TypeOf(currentValue.Interface()), currentValue)
 }
 
 // Copy a source variable to a destination variable, overwriting it.
@@ -133,7 +136,7 @@ func (c *Config) XCopyUsingExisting(ctx *Context, src reflect.Value, currentValu
 // This is an alias for "CopyToExisting"
 // The src variable is never changed in any circunstance.
 func (c *Config) XCopyToExisting(ctx *Context, src reflect.Value, currentValue reflect.Value) error {
-	_, err := c.Dup().AddFlags(XCF_OVERWRITE_EXISTING).XCopyUsingExistingIfValid(ctx, src, reflect.TypeOf(currentValue.Interface()), currentValue)
+	_, err := c.Dup().AddFlags(XCF_OVERWRITE_EXISTING).internalXCopyUsingExistingIfValid(ctx, src, reflect.TypeOf(currentValue.Interface()), currentValue)
 	return err
 }
 
@@ -141,7 +144,7 @@ func (c *Config) XCopyToExisting(ctx *Context, src reflect.Value, currentValue r
 // The src variables are never changed in any circunstance.
 func (c *Config) XMergeToNew(ctx *Context, destType reflect.Type, src ...reflect.Value) (reflect.Value, error) {
 	if len(src) == 0 {
-		return reflect.Value{}, newError(errors.New("At least one source is needed for merge"), ctx.Dup())
+		return reflect.Value{}, newError(errors.New("At least one source is needed for merge"), ctx)
 	}
 	ret := reflect.Value{}
 	var err error
@@ -153,7 +156,7 @@ func (c *Config) XMergeToNew(ctx *Context, destType reflect.Type, src ...reflect
 				return reflect.Value{}, err
 			}
 			if !ret.CanAddr() {
-				return reflect.Value{}, newError(errors.New("Destination value is not addressable, cannot continue merge"), ctx.Dup())
+				return reflect.Value{}, newError(errors.New("Destination value is not addressable, cannot continue merge"), ctx)
 			}
 			ret = ret.Addr()
 		} else {

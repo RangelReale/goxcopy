@@ -33,6 +33,7 @@ type Config struct {
 	FieldMap map[string]*FieldMap
 	// Configuration of the primitive type converter
 	RprimConfig *rprim.Config
+	Callback    Callback
 }
 
 // Creates a new default Config
@@ -49,6 +50,7 @@ func (c *Config) Dup() *Config {
 		Flags:         c.Flags,
 		StructTagName: c.StructTagName,
 		RprimConfig:   c.RprimConfig.Dup(),
+		Callback:      c.Callback,
 	}
 	if c.FieldMap != nil {
 		ret.FieldMap = make(map[string]*FieldMap)
@@ -92,8 +94,14 @@ func (c *Config) GetFieldMap(fieldname string) *FieldMap {
 	return nil
 }
 
+// Set the callback
+func (c *Config) SetCallback(callback Callback) *Config {
+	c.Callback = callback
+	return c
+}
+
 // The underling function that does the other functions work.
-func (c *Config) XCopyUsingExistingIfValid(ctx *Context, src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
+func (c *Config) internalXCopyUsingExistingIfValid(ctx *Context, src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
 	skind := rprim.UnderliningValueKind(src)
 
 	switch skind {
@@ -108,7 +116,7 @@ func (c *Config) XCopyUsingExistingIfValid(ctx *Context, src reflect.Value, dest
 		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128, reflect.String, reflect.Interface:
 		return c.copyTo_Primitive(ctx, src, destType, currentValue)
 	}
-	return reflect.Value{}, newError(fmt.Errorf("Kind not supported: %s", skind.String()), ctx.Dup())
+	return reflect.Value{}, newError(fmt.Errorf("Kind not supported: %s", skind.String()), ctx)
 }
 
 //
@@ -117,7 +125,7 @@ func (c *Config) XCopyUsingExistingIfValid(ctx *Context, src reflect.Value, dest
 func (c *Config) copyTo_Struct(ctx *Context, src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
 	srcValue := rprim.UnderliningValue(src)
 
-	destCreator, err := c.XCopyGetCreator(ctx, destType)
+	destCreator, err := c.GetCreator(ctx, destType)
 	if err != nil {
 		return reflect.Value{}, err
 	}
@@ -164,8 +172,12 @@ func (c *Config) copyTo_Struct(ctx *Context, src reflect.Value, destType reflect
 					fv := reflect.ValueOf(targetFieldName)
 
 					ctx.PushField(fv)
+					c.callbackPushField(ctx, fv, src, destCreator) // callback
+
 					err := destCreator.SetField(fv, srcField)
+
 					ctx.PopField()
+					c.callbackPopField(ctx, fv, src, destCreator) // callback
 
 					if err != nil {
 						return reflect.Value{}, err
@@ -184,7 +196,7 @@ func (c *Config) copyTo_Struct(ctx *Context, src reflect.Value, destType reflect
 func (c *Config) copyTo_Map(ctx *Context, src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
 	srcValue := rprim.UnderliningValue(src)
 
-	destCreator, err := c.XCopyGetCreator(ctx, destType)
+	destCreator, err := c.GetCreator(ctx, destType)
 	if err != nil {
 		return reflect.Value{}, err
 	}
@@ -209,8 +221,12 @@ func (c *Config) copyTo_Map(ctx *Context, src reflect.Value, destType reflect.Ty
 
 				// set the value on the creator
 				ctx.PushField(kindex)
+				c.callbackPushField(ctx, kindex, src, destCreator) // callback
+
 				err := destCreator.SetField(kindex, srcField)
+
 				ctx.PopField()
+				c.callbackPopField(ctx, kindex, src, destCreator) // callback
 
 				if err != nil {
 					return reflect.Value{}, err
@@ -228,7 +244,7 @@ func (c *Config) copyTo_Map(ctx *Context, src reflect.Value, destType reflect.Ty
 func (c *Config) copyTo_Slice(ctx *Context, src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
 	srcValue := rprim.UnderliningValue(src)
 
-	destCreator, err := c.XCopyGetCreator(ctx, destType)
+	destCreator, err := c.GetCreator(ctx, destType)
 	if err != nil {
 		return reflect.Value{}, err
 	}
@@ -255,8 +271,12 @@ func (c *Config) copyTo_Slice(ctx *Context, src reflect.Value, destType reflect.
 
 				// set the value on the creator
 				ctx.PushField(fvindex)
+				c.callbackPushField(ctx, fvindex, src, destCreator) // callback
+
 				err := destCreator.SetField(fvindex, srcField)
+
 				ctx.PopField()
+				c.callbackPopField(ctx, fvindex, src, destCreator) // callback
 
 				if err != nil {
 					return reflect.Value{}, err
@@ -272,7 +292,7 @@ func (c *Config) copyTo_Slice(ctx *Context, src reflect.Value, destType reflect.
 // Primitive copy source
 //
 func (c *Config) copyTo_Primitive(ctx *Context, src reflect.Value, destType reflect.Type, currentValue reflect.Value) (reflect.Value, error) {
-	destCreator, err := c.XCopyGetCreator(ctx, destType)
+	destCreator, err := c.GetCreator(ctx, destType)
 	if err != nil {
 		return reflect.Value{}, err
 	}
@@ -282,6 +302,8 @@ func (c *Config) copyTo_Primitive(ctx *Context, src reflect.Value, destType refl
 		}
 	}
 
+	c.callbackBeforeSetValue(ctx, src, destCreator, currentValue) // callback
+
 	if !destCreator.TryFastCopy(src) {
 		// set the value on the creator. As primitives don't have fields, the index is passed as an INVALID reflect.Value.
 		err = destCreator.SetField(reflect.Value{}, src)
@@ -289,5 +311,46 @@ func (c *Config) copyTo_Primitive(ctx *Context, src reflect.Value, destType refl
 			return reflect.Value{}, err
 		}
 	}
+
+	c.callbackAfterSetValue(ctx, src, destCreator, currentValue) // callback
+
 	return destCreator.Create()
+}
+
+// Callback helpers
+
+func (c *Config) callbackBeginNew(ctx *Context, src reflect.Value, destType reflect.Type) {
+	if c.Callback != nil {
+		c.Callback.BeginNew(ctx, src, destType)
+	}
+}
+
+func (c *Config) callbackEndNew(ctx *Context, src reflect.Value, destType reflect.Type) {
+	if c.Callback != nil {
+		c.Callback.EndNew(ctx, src, destType)
+	}
+}
+
+func (c *Config) callbackPushField(ctx *Context, fieldname reflect.Value, src reflect.Value, dest Creator) {
+	if c.Callback != nil {
+		c.Callback.PushField(ctx, fieldname, src, dest)
+	}
+}
+
+func (c *Config) callbackPopField(ctx *Context, fieldname reflect.Value, src reflect.Value, dest Creator) {
+	if c.Callback != nil {
+		c.Callback.PopField(ctx, fieldname, src, dest)
+	}
+}
+
+func (c *Config) callbackBeforeSetValue(ctx *Context, src reflect.Value, dest Creator, value reflect.Value) {
+	if c.Callback != nil {
+		c.Callback.BeforeSetValue(ctx, src, dest, value)
+	}
+}
+
+func (c *Config) callbackAfterSetValue(ctx *Context, src reflect.Value, dest Creator, value reflect.Value) {
+	if c.Callback != nil {
+		c.Callback.AfterSetValue(ctx, src, dest, value)
+	}
 }

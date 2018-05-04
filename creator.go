@@ -9,7 +9,7 @@ import (
 )
 
 // The creator interface represent the target of a copy.
-type XCopyCreator interface {
+type Creator interface {
 	// The type that will be created.
 	Type() reflect.Type
 	// Creates an instance of the value
@@ -23,7 +23,7 @@ type XCopyCreator interface {
 }
 
 // Gets a creator for a type.
-func (c *Config) XCopyGetCreator(ctx *Context, t reflect.Type) (XCopyCreator, error) {
+func (c *Config) GetCreator(ctx *Context, t reflect.Type) (Creator, error) {
 	tkind := rprim.UnderliningTypeKind(t)
 
 	switch tkind {
@@ -38,7 +38,7 @@ func (c *Config) XCopyGetCreator(ctx *Context, t reflect.Type) (XCopyCreator, er
 		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128, reflect.String, reflect.Interface:
 		return &copyCreator_Primitive{ctx: ctx, c: c, t: t}, nil
 	}
-	return nil, newError(fmt.Errorf("Kind not supported: %s", tkind.String()), ctx.Dup())
+	return nil, newError(fmt.Errorf("Kind not supported: %s", tkind.String()), ctx)
 }
 
 //
@@ -63,7 +63,7 @@ func (c *copyCreator_Struct) TryFastCopy(value reflect.Value) bool {
 
 func (c *copyCreator_Struct) SetCurrentValue(current reflect.Value) error {
 	if current.Type() != c.t {
-		return newError(fmt.Errorf("Destination is not of the same type (%s -> %s)", current.Type().String(), c.t.String()), c.ctx.Dup())
+		return newError(fmt.Errorf("Destination is not of the same type (%s -> %s)", current.Type().String(), c.t.String()), c.ctx)
 	}
 	if current.IsValid() {
 		// check if must write on the passed value
@@ -86,13 +86,13 @@ func (c *copyCreator_Struct) SetCurrentValue(current reflect.Value) error {
 		if need_duplicate {
 			if !overwrite_existing || (c.c.Flags&XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE) == XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE {
 				// Create a new instance copying the value
-				newValue, err := c.c.XCopyToNew(c.ctx, current, c.t)
+				newValue, err := c.c.XCopyToNew(NewContext(), current, c.t)
 				if err != nil {
 					return err
 				}
 				c.v = newValue
 			} else {
-				return newError(fmt.Errorf("Struct fields are not settable and duplicates are not allowed"), c.ctx.Dup())
+				return newError(fmt.Errorf("Struct fields are not settable and duplicates are not allowed"), c.ctx)
 			}
 		}
 	}
@@ -142,17 +142,17 @@ func (c *copyCreator_Struct) SetField(index reflect.Value, value reflect.Value) 
 	}
 	if !fieldTypeOk {
 		if (c.c.Flags & XCF_ERROR_IF_STRUCT_FIELD_MISSING) == XCF_ERROR_IF_STRUCT_FIELD_MISSING {
-			return newError(fmt.Errorf("Field %s missing on struct", fieldname), c.ctx.Dup())
+			return newError(fmt.Errorf("Field %s missing on struct", fieldname), c.ctx)
 		}
 		return nil
 	}
 
 	fieldValue := uv.FieldByName(fieldType.Name)
 	if !fieldValue.CanSet() {
-		return newError(fmt.Errorf("Struct field %s is not settable", fieldname), c.ctx.Dup())
+		return newError(fmt.Errorf("Struct field %s is not settable", fieldname), c.ctx)
 	}
 
-	cv, err := c.c.XCopyUsingExistingIfValid(c.ctx, value, fieldType.Type, fieldValue)
+	cv, err := c.c.internalXCopyUsingExistingIfValid(c.ctx, value, fieldType.Type, fieldValue)
 	if err != nil {
 		return err
 	}
@@ -206,7 +206,7 @@ func (c *copyCreator_Map) TryFastCopy(value reflect.Value) bool {
 
 func (c *copyCreator_Map) SetCurrentValue(current reflect.Value) error {
 	if current.Type() != c.t {
-		return newError(fmt.Errorf("Destination is not of the same type (%s -> %s)", current.Type().String(), c.t.String()), c.ctx.Dup())
+		return newError(fmt.Errorf("Destination is not of the same type (%s -> %s)", current.Type().String(), c.t.String()), c.ctx)
 	}
 
 	if current.IsValid() {
@@ -227,13 +227,13 @@ func (c *copyCreator_Map) SetCurrentValue(current reflect.Value) error {
 		if need_duplicate {
 			if !overwrite_existing || (c.c.Flags&XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE) == XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE {
 				// Create a new instance copying the value
-				newValue, err := c.c.XCopyToNew(c.ctx, current, c.t)
+				newValue, err := c.c.XCopyToNew(NewContext(), current, c.t)
 				if err != nil {
 					return err
 				}
 				c.v = newValue
 			} else {
-				return newError(fmt.Errorf("Slice is not settable and duplicates are not allowed"), c.ctx.Dup())
+				return newError(fmt.Errorf("Slice is not settable and duplicates are not allowed"), c.ctx)
 			}
 		}
 	}
@@ -275,7 +275,7 @@ func (c *copyCreator_Map) SetField(index reflect.Value, value reflect.Value) err
 		}
 	}
 
-	cv, err := c.c.XCopyUsingExistingIfValid(c.ctx, value, target_type, currentValue)
+	cv, err := c.c.internalXCopyUsingExistingIfValid(c.ctx, value, target_type, currentValue)
 	if err != nil {
 		return err
 	}
@@ -351,7 +351,7 @@ func (c *copyCreator_Slice) TryFastCopy(value reflect.Value) bool {
 
 func (c *copyCreator_Slice) SetCurrentValue(current reflect.Value) error {
 	if current.Type() != c.t {
-		return newError(fmt.Errorf("Destination is not of the same type (%s -> %s)", current.Type().String(), c.t.String()), c.ctx.Dup())
+		return newError(fmt.Errorf("Destination is not of the same type (%s -> %s)", current.Type().String(), c.t.String()), c.ctx)
 	}
 
 	if current.IsValid() {
@@ -372,13 +372,13 @@ func (c *copyCreator_Slice) SetCurrentValue(current reflect.Value) error {
 		if need_duplicate {
 			if !overwrite_existing || (c.c.Flags&XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE) == XCF_ALLOW_DUPLICATING_IF_NOT_SETTABLE {
 				// Create a new instance copying the value
-				newValue, err := c.c.XCopyToNew(c.ctx, current, c.t)
+				newValue, err := c.c.XCopyToNew(NewContext(), current, c.t)
 				if err != nil {
 					return err
 				}
 				c.v = newValue
 			} else {
-				return newError(fmt.Errorf("Slice is not settable and duplicates are not allowed"), c.ctx.Dup())
+				return newError(fmt.Errorf("Slice is not settable and duplicates are not allowed"), c.ctx)
 			}
 		}
 	}
@@ -418,7 +418,7 @@ func (c *copyCreator_Slice) SetField(index reflect.Value, value reflect.Value) e
 		currentValue = uv.Index(int(sliceindex.Int()))
 	}
 
-	cv, err := c.c.XCopyUsingExistingIfValid(c.ctx, value, ut.Elem(), currentValue)
+	cv, err := c.c.internalXCopyUsingExistingIfValid(c.ctx, value, ut.Elem(), currentValue)
 	if err != nil {
 		return err
 	}
@@ -430,11 +430,11 @@ func (c *copyCreator_Slice) SetField(index reflect.Value, value reflect.Value) e
 func (c *copyCreator_Slice) append() error {
 	v := rprim.UnderliningValue(c.v)
 	if v.Kind() == reflect.Array {
-		return newError(errors.New("Arrays cannot be appended"), c.ctx.Dup())
+		return newError(errors.New("Arrays cannot be appended"), c.ctx)
 	} else if v.CanSet() {
 		v.Set(reflect.Append(v, reflect.Zero(rprim.UnderliningType(c.t).Elem())))
 	} else {
-		return newError(errors.New("Slice/array is not settable"), c.ctx.Dup())
+		return newError(errors.New("Slice/array is not settable"), c.ctx)
 	}
 	return nil
 }
@@ -492,7 +492,7 @@ func (c *copyCreator_Primitive) TryFastCopy(value reflect.Value) bool {
 
 func (c *copyCreator_Primitive) SetCurrentValue(current reflect.Value) error {
 	if current.Type() != c.t {
-		return newError(fmt.Errorf("Destination is not of the same type (%s -> %s)", current.Type().String(), c.t.String()), c.ctx.Dup())
+		return newError(fmt.Errorf("Destination is not of the same type (%s -> %s)", current.Type().String(), c.t.String()), c.ctx)
 	}
 
 	if current.IsValid() {
@@ -513,13 +513,13 @@ func (c *copyCreator_Primitive) SetCurrentValue(current reflect.Value) error {
 		if need_duplicate {
 			if !overwrite_existing || !((c.c.Flags & XCF_DENY_DUPLICATING_PRIMITIVE_IF_NOT_SETTABLE) == XCF_DENY_DUPLICATING_PRIMITIVE_IF_NOT_SETTABLE) {
 				// Create a new instance copying the value
-				newValue, err := c.c.XCopyToNew(c.ctx, current, c.t)
+				newValue, err := c.c.XCopyToNew(NewContext(), current, c.t)
 				if err != nil {
 					return err
 				}
 				c.v = newValue
 			} else {
-				return newError(fmt.Errorf("Primitive is not settable and duplicates are not allowed"), c.ctx.Dup())
+				return newError(fmt.Errorf("Primitive is not settable and duplicates are not allowed"), c.ctx)
 			}
 		}
 	}
@@ -533,7 +533,7 @@ func (c *copyCreator_Primitive) Create() (reflect.Value, error) {
 
 func (c *copyCreator_Primitive) SetField(index reflect.Value, value reflect.Value) error {
 	if index.IsValid() {
-		return newError(fmt.Errorf("Cannot set a primitive with an index"), c.ctx.Dup())
+		return newError(fmt.Errorf("Cannot set a primitive with an index"), c.ctx)
 	}
 
 	err := c.ensureValue()
@@ -552,14 +552,14 @@ func (c *copyCreator_Primitive) SetField(index reflect.Value, value reflect.Valu
 	} else if c.v.Kind() == reflect.Ptr && val.Kind() == reflect.Ptr {
 		// if is non-nil pointer, set the pointed to element value
 		if c.v.IsNil() && !val.IsNil() {
-			return newError(errors.New("The primitive value is not settable, and the destination value is nil"), c.ctx.Dup())
+			return newError(errors.New("The primitive value is not settable, and the destination value is nil"), c.ctx)
 		} else if val.IsNil() {
-			return newError(errors.New("The primitive value is not settable, and the source value is nil"), c.ctx.Dup())
+			return newError(errors.New("The primitive value is not settable, and the source value is nil"), c.ctx)
 		} else {
 			c.v.Elem().Set(val.Elem())
 		}
 	} else {
-		return newError(errors.New("The primitive value is not settable"), c.ctx.Dup())
+		return newError(errors.New("The primitive value is not settable"), c.ctx)
 	}
 	return nil
 }

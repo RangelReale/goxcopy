@@ -13,7 +13,7 @@ type Error struct {
 func newError(err error, ctx *Context) *Error {
 	return &Error{
 		Err: err,
-		Ctx: ctx,
+		Ctx: ctx.Dup(),
 	}
 }
 
