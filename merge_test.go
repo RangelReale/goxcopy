@@ -38,3 +38,32 @@ func TestMergeMap(t *testing.T) {
 		t.Fatal("Result values are not the expected ones")
 	}
 }
+
+func TestMergeMapExisting(t *testing.T) {
+
+	s1 := map[string]string{
+		"value1": "s1_value1",
+		"value2": "s1_value2",
+	}
+
+	s2 := map[string]string{
+		"value3": "s2_value3",
+		"value4": "s2_value4",
+	}
+
+	s3 := map[string]string{
+		"value1": "s3_value1",
+		"value4": "s3_value4",
+		"value5": "s3_value5",
+	}
+
+	err := MergeToExisting(&s1, s2, s3)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(s1) != 5 || s1["value1"] != "s3_value1" || s1["value2"] != "s1_value2" ||
+		s1["value3"] != "s2_value3" || s1["value4"] != "s3_value4" || s1["value5"] != "s3_value5" {
+		t.Fatal("Result values are not the expected ones")
+	}
+}

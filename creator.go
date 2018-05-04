@@ -233,7 +233,7 @@ func (c *copyCreator_Map) SetCurrentValue(current reflect.Value) error {
 				}
 				c.v = newValue
 			} else {
-				return newError(fmt.Errorf("Slice is not settable and duplicates are not allowed"), c.ctx)
+				return newError(fmt.Errorf("Map is not settable and duplicates are not allowed."), c.ctx)
 			}
 		}
 	}

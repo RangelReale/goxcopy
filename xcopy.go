@@ -41,6 +41,12 @@ func MergeToNew(destType reflect.Type, src ...interface{}) (interface{}, error) 
 	return NewConfig().MergeToNew(destType, src...)
 }
 
+// Merges all source variables to an existing instance.
+// The src variables are never changed in any circunstance.
+func MergeToExisting(currentValue interface{}, src ...interface{}) error {
+	return NewConfig().MergeToExisting(currentValue, src...)
+}
+
 // Copy a source variable to a new instance of the passed type.
 // The src variable is never changed in any circunstance.
 func XCopyToNew(src reflect.Value, destType reflect.Type) (reflect.Value, error) {
@@ -67,6 +73,12 @@ func XCopyToExisting(src reflect.Value, currentValue reflect.Value) error {
 // The src variables are never changed in any circunstance.
 func XMergeToNew(destType reflect.Type, src ...reflect.Value) (reflect.Value, error) {
 	return NewConfig().XMergeToNew(NewContext(), destType, src...)
+}
+
+// Merges all source variables to an existing instance.
+// The src variables are never changed in any circunstance.
+func XMergeToExisting(currentValue reflect.Value, src ...reflect.Value) error {
+	return NewConfig().XMergeToExisting(NewContext(), currentValue, src...)
 }
 
 // Copy a source variable to a new instance of the passed type.
@@ -112,6 +124,17 @@ func (c *Config) MergeToNew(destType reflect.Type, src ...interface{}) (interfac
 		return nil, err
 	}
 	return ret.Interface(), nil
+}
+
+// Merges all source variables to an existing instance.
+// The src variables are never changed in any circunstance.
+func (c *Config) MergeToExisting(currentValue interface{}, src ...interface{}) error {
+	var rsrc []reflect.Value
+	for _, isrc := range src {
+		rsrc = append(rsrc, reflect.ValueOf(isrc))
+	}
+
+	return c.XMergeToExisting(NewContext(), reflect.ValueOf(currentValue), rsrc...)
 }
 
 // Copy a source variable to a new instance of the passed type.
@@ -168,4 +191,21 @@ func (c *Config) XMergeToNew(ctx *Context, destType reflect.Type, src ...reflect
 		}
 	}
 	return ret.Elem(), nil
+}
+
+// Merges all source variables to an existing instance.
+// The src variables are never changed in any circunstance.
+func (c *Config) XMergeToExisting(ctx *Context, currentValue reflect.Value, src ...reflect.Value) error {
+	if len(src) == 0 {
+		return newError(errors.New("At least one source is needed for merge"), ctx)
+	}
+	var err error
+	for _, isrc := range src {
+		// merge the rest
+		err = c.XCopyToExisting(ctx, isrc, currentValue)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
